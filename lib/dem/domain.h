@@ -100,6 +100,7 @@ public:
     double rho, bool Cohesion, bool Periodic,size_t Randomseed, double fraction, Vec3_t q = OrthoSys::O);                        ///< Generate a Voronoi Packing with dimensions Li and polihedra per side ni
     void AddVoroPack     (int Tag, double R, double Lx, double Ly, double Lz, size_t nx, size_t ny, size_t nz,
     double rho, bool Cohesion, bVec3_t Periodic,size_t Randomseed, double fraction, Vec3_t q = OrthoSys::O);                     ///< Generate a Voronoi Packing with dimensions Li and polihedra per side ni, Periodic conditions are chosen for each particle
+    void AddVoroPackFromPoints     (int Tag, double R, double Lx, double Ly, double Lz, size_t nx, size_t ny, size_t nz, char const * FileKey, double rho, bool Cohesion, bVec3_t Periodic,size_t Randomseed, double fraction, Vec3_t q = OrthoSys::O);                     ///< Generate a Voronoi Packing with dimensions Li and polihedra with centers from a file FileKey, Periodic conditions are chosen for each particle
     // Single particle addition
     void AddSphere   (int Tag, Vec3_t const & X, double R, double rho);                                                          ///< Add sphere
     void AddCube     (int Tag, Vec3_t const & X, double R, double L, double rho, double Angle=0, Vec3_t * Axis=NULL);            ///< Add a cube at position X with spheroradius R, side of length L and density rho
@@ -129,6 +130,7 @@ public:
     void WriteFrac         (char const * FileKey);                                                              ///< Save a xdmf file for fracture visualization
     void WriteXDMF         (char const * FileKey);                                                              ///< Save a xdmf file for visualization
     void Save              (char const * FileKey);                                                              ///< Save the current domain
+    void SavePoints        (char const * FileKey, int bTag);                                                              ///< Save the current domain
     void Load              (char const * FileKey);                                                              ///< Load the domain form a file
 #endif
 
@@ -1780,6 +1782,19 @@ inline void Domain::Save (char const * FileKey)
     H5Fflush(file_id,H5F_SCOPE_GLOBAL);
     H5Fclose(file_id);
     //sleep(5);
+}
+
+inline void Domain::SavePoints (char const * FileKey, int bTag)
+{
+  String fn(FileKey);
+  std::ofstream of; // file for writing the points to
+  of.open(fn.CStr());
+  for(size_t p=0; p < Particles.Size(); p++){
+    if (Particles[p]-> Tag == bTag){
+      Vec3_t pos = Particles[p]->x;
+      of << Util::_2 << p << Util::_8s << pos(0) << Util::_8s << pos(1) << Util::_8s << pos(2) << std::endl;
+    }
+  }
 }
 
 inline void Domain::Load (char const * FileKey)

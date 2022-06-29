@@ -541,6 +541,90 @@ inline void Domain::AddVoroPack (int Tag, double R, double Lx, double Ly, double
 {
     AddVoroPack(Tag,R,Lx,Ly,Lz,nx,ny,nz,rho,Cohesion,bVec3_t(Periodic,Periodic,Periodic),Randomseed,fraction,qin);
 }
+
+inline void Domain::AddVoroPackFromPoints (int Tag, double R, double Lx, double Ly, double Lz, size_t nx, size_t ny, size_t nz, char const * FileKey, double rho, bool Cohesion, bVec3_t Periodic,size_t Randomseed, double fraction, Vec3_t qin)
+{
+    // info
+    Util::Stopwatch stopwatch;
+    printf("\n%s--- Adding Voronoi particles packing --------------------------------------------%s\n",TERM_CLR1,TERM_RST);
+    String fn(FileKey);
+    srand(Randomseed);
+    const double x_min=-(Lx/2.0), x_max=Lx/2.0;
+    const double y_min=-(Ly/2.0), y_max=Ly/2.0;
+    const double z_min=-(Lz/2.0), z_max=Lz/2.0;
+    voro::container con(x_min,x_max,y_min,y_max,z_min,z_max,nx,ny,nz, Periodic(0),Periodic(1),Periodic(2),8);
+    con.import(fn.CStr());
+
+    size_t IIndex = Particles.Size();
+    voro::c_loop_all vl(con);
+    voro::voronoicell c;
+    if(vl.start()) do if(con.compute_cell(c,vl)) 
+    {
+        {
+            if (rand()<fraction*RAND_MAX)
+            {
+                AddVoroCell(Tag,c,R,rho,true,Vec3_t(1.,1.,1.));
+                std::cout<< "AddVoroPackFromPoints:: Added particle with volume " << Particles[Particles.Size()-1]->Props.V <<" and centre"<<Particles[Particles.Size()-1]->x<<"\n";
+                double *pp = con.p[vl.ijk]+3*vl.q;
+                Vec3_t trans(pp[0],pp[1],pp[2]);
+                Particle * P = Particles[Particles.Size()-1];
+                P->Translate(trans);
+            }
+        }
+    } while(vl.inc());
+
+    Array<Array <size_t> > ListBpairs(Particles.Size()-IIndex); //n);
+
+    // info
+    printf("%s  Num of particles   = %zd%s\n",TERM_CLR2,Particles.Size(),TERM_RST);
+
+
+    if (Cohesion)
+    {
+        //if (fraction<1.0) throw new Fatal("Domain::AddVoroPack: With the Cohesion all particles should be considered, plese change the fraction to 1.0");
+
+        // define some tolerance for comparissions
+        double tol1 = 1.0e-8;
+        double tol2 = 1.0e-3;
+        for (size_t i=IIndex;i<Particles.Size()-1;i++)
+        {
+            Particle * P1 = Particles[i];
+            for (size_t j=i+1;j<Particles.Size();j++)
+            {
+                Particle * P2 = Particles[j];
+                if (Distance(P1->x,P2->x)<P1->Dmax+P2->Dmax)
+                {
+                    for (size_t k=0;k<P1->Faces.Size();k++)
+                    {
+                        Face * F1 = P1->Faces[k];
+                        Vec3_t n1,c1;
+                        F1->Normal  (n1);
+                        F1->Centroid(c1);
+                        bool found = false;
+                        for (size_t l=0;l<P2->Faces.Size();l++)
+                        {
+                            Face * F2 = P2->Faces[l];
+                            Vec3_t n2,c2;
+                            F2->Normal  (n2);
+                            F2->Centroid(c2);
+                            Vec3_t n = 0.5*(n1-n2);
+                            n/=norm(n);
+                            if ((fabs(dot(n1,n2)+1.0)<tol1)
+                               &&(fabs(Distance(c1,*F2)-2*R)<tol2)
+                               &&(fabs(Distance(c2,*F1)-2*R)<tol2))
+                            {
+                                BInteractons.Push(new BInteracton(P1,P2,k,l));
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (found) break;
+                    }
+                }
+            }
+        }
+    }
+}
 // Sihgle particle addition
 
 inline void Domain::AddSphere (int Tag,Vec3_t const & X, double R, double rho)
