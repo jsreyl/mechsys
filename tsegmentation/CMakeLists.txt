@@ -26,7 +26,10 @@ SET(PROGS
     simple_restart
     test_beam
     test_beam_from_file
+    simple_breaking_restartv1
+    simple_breaking_restartv0
     test_dynamics
+    voro_error
 )
 
 FOREACH(var ${PROGS})

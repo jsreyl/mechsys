@@ -814,6 +814,64 @@ inline void Eig (Mat3_t & M, Vec3_t & L, Vec3_t & V0, Vec3_t & V1, Vec3_t & V2, 
     gsl_matrix_free      (evec);
 }
 
+/** Eigenvalues of a nonsymmetric matrix. NOTE: This function changes the matrix M.
+    Eigenvalues are given in two vectors R and I containing the real and imaginary parts respectively.
+ **/
+inline void EigNonsymm(Mat3_t & M, Vec3_t & R, Vec3_t & I){
+  //calculate for a non-symmetrical system using GSL (GNU scientific library)
+  // To do this the Schur decomposition is used
+  // M = ZSZ^T
+  // Where Z is the matrix of Schur vectors and S is the Schur form which is a quasi upper triangular matrix whose diagonal is in 1-1 blocks containing the eigenvalues of A or 2-2 blocks containing the eigenvalues and complex conjugates of A.
+  gsl_matrix_view m = gsl_matrix_view_array(M.data(),3,3); //Allocate matrix array
+  gsl_vector_complex * eval = gsl_vector_complex_alloc(3); //Allocate a vector to return eivenvalues
+  gsl_eigen_nonsymm_workspace * w = gsl_eigen_nonsymm_alloc (3);//Allocate workspace for eigenvalues of nonsymmetric system
+  gsl_eigen_nonsymm_params(0,1, w); // 0: Don't compute the Schur form, but 1: do a balancing transformation to reduce the error of eigenvalue calculation
+  gsl_eigen_nonsymm(&m.matrix, eval, w); // Compute the eigenvalues, NOTE: This destroys m.matrix
+
+  //Get the eigenvalues back into our vector
+  R = GSL_REAL(gsl_vector_complex_get(eval,0)), GSL_REAL(gsl_vector_complex_get(eval,1)), GSL_REAL(gsl_vector_complex_get(eval,2));
+  I = GSL_IMAG(gsl_vector_complex_get(eval,0)), GSL_IMAG(gsl_vector_complex_get(eval,1)), GSL_IMAG(gsl_vector_complex_get(eval,2));
+
+  //clean up
+  gsl_eigen_nonsymm_free (w);
+  gsl_vector_complex_free (eval);
+}
+
+/** Eigenvalues and eigenvectors of a nonsymmetric matrix. NOTE: This function changes the matrix M.
+    Eigenvalues are given in two vectors R and I containing the real and imaginary parts respectively.
+    Eigenvectors are given by V0r+V0i where V0r is the real part and V0i the imaginary part
+ **/
+inline void EigNonsymm(Mat3_t & M, Vec3_t & R, Vec3_t & I, Vec3_t & V0r, Vec3_t & V1r, Vec3_t & V2r, Vec3_t & V0i, Vec3_t & V1i, Vec3_t & V2i){
+  //calculate for a non-symmetrical system using GSL (GNU scientific library)
+  // To do this the Schur decomposition is used
+  // M = ZSZ^T
+  // Where Z is the matrix of Schur vectors and S is the Schur form which is a quasi upper triangular matrix whose diagonal is in 1-1 blocks containing the eigenvalues of A or 2-2 blocks containing the eigenvalues and complex conjugates of A.
+  gsl_matrix_view m = gsl_matrix_view_array(M.data(),3,3); //Allocate matrix array
+  gsl_vector_complex * eval = gsl_vector_complex_alloc(3); //Allocate a vector to return eivenvalues
+  gsl_matrix_complex * evec = gsl_matrix_complex_alloc(3,3); //Allocate a matrix to return eigenvectors
+  gsl_eigen_nonsymmv_workspace * w = gsl_eigen_nonsymmv_alloc (3);//Allocate workspace for eigenvalues of nonsymmetric system
+  gsl_eigen_nonsymmv_params(1, w); //1: Do a balancing transformation to reduce the error of eigenvalue calculation
+  gsl_eigen_nonsymmv(&m.matrix, eval, evec, w); // Compute the eigenvalues, NOTE: This destroys m.matrix
+  //Get the eigenvalues back into our vector
+  R = GSL_REAL(gsl_vector_complex_get(eval,0)), GSL_REAL(gsl_vector_complex_get(eval,1)), GSL_REAL(gsl_vector_complex_get(eval,2));
+  I = GSL_IMAG(gsl_vector_complex_get(eval,0)), GSL_IMAG(gsl_vector_complex_get(eval,1)), GSL_IMAG(gsl_vector_complex_get(eval,2));
+
+  //Get the eigenvectors
+  gsl_vector_complex_view ev = gsl_matrix_complex_column(evec,0);
+  V0r = GSL_REAL(gsl_vector_complex_get(&ev.vector,0)), GSL_REAL(gsl_vector_complex_get(&ev.vector,1)), GSL_REAL(gsl_vector_complex_get(&ev.vector,2));
+  V0i = GSL_IMAG(gsl_vector_complex_get(&ev.vector,0)), GSL_IMAG(gsl_vector_complex_get(&ev.vector,1)), GSL_IMAG(gsl_vector_complex_get(&ev.vector,2));
+  ev = gsl_matrix_complex_column(evec,1);
+  V1r = GSL_REAL(gsl_vector_complex_get(&ev.vector,0)), GSL_REAL(gsl_vector_complex_get(&ev.vector,1)), GSL_REAL(gsl_vector_complex_get(&ev.vector,2));
+  V1i = GSL_IMAG(gsl_vector_complex_get(&ev.vector,0)), GSL_IMAG(gsl_vector_complex_get(&ev.vector,1)), GSL_IMAG(gsl_vector_complex_get(&ev.vector,2));
+  ev = gsl_matrix_complex_column(evec,2);
+  V2r = GSL_REAL(gsl_vector_complex_get(&ev.vector,0)), GSL_REAL(gsl_vector_complex_get(&ev.vector,1)), GSL_REAL(gsl_vector_complex_get(&ev.vector,2));
+  V2i = GSL_IMAG(gsl_vector_complex_get(&ev.vector,0)), GSL_IMAG(gsl_vector_complex_get(&ev.vector,1)), GSL_IMAG(gsl_vector_complex_get(&ev.vector,2));
+
+  //clean up
+  gsl_eigen_nonsymmv_free (w);
+  gsl_vector_complex_free (eval);
+  gsl_matrix_complex_free (evec);
+}
 /** Norm. */
 inline double Norm (Vec3_t const & V)
 {
