@@ -133,6 +133,7 @@ public:
     void Save              (char const * FileKey);                                                              ///< Save the current domain
     void SavePoints        (char const * FileKey, int bTag);                                                              ///< Save the current domain
     void Load              (char const * FileKey);                                                              ///< Load the domain form a file
+    void LoadCohesion              (char const * FileKey, bool Cohesion, int bTag);                                                              ///< Load the domain form a file adding cohesion between the particles of a given tag bTag
 #endif
 
 #ifdef USE_VTK
@@ -2321,6 +2322,217 @@ inline void Domain::Load (char const * FileKey)
     printf("\n%s--- Done --------------------------------------------%s\n",TERM_CLR2,TERM_RST);
 }
 
+inline void Domain::LoadCohesion (char const * FileKey, bool Cohesion, int bTag)
+{
+
+    size_t IIndex = Particles.Size();
+    // Opening the file for reading
+    String fn(FileKey);
+    fn.append(".hdf5");
+    if (!Util::FileExists(fn)) throw new Fatal("File <%s> not found",fn.CStr());
+    printf("\n%s--- Loading file %s --------------------------------------------%s\n",TERM_CLR1,fn.CStr(),TERM_RST);
+    hid_t file_id;
+    file_id = H5Fopen(fn.CStr(), H5F_ACC_RDONLY, H5P_DEFAULT);
+
+    // Number of particles in the domain
+    int data[1];
+    H5LTread_dataset_int(file_id,"/NP",data);
+    size_t NP = data[0];
+
+    // Loading the particles
+    for (size_t i=0; i<NP; i++)
+    {
+
+        // Creating the string and the group for each particle
+        hid_t group_id;
+        String par;
+        par.Printf("/Particle_%08d",i);
+        group_id = H5Gopen(file_id, par.CStr(),H5P_DEFAULT);
+
+        // Finding the particle's position for the domain decomposition
+        double X[3];
+        H5LTread_dataset_double(group_id,"x",X);
+
+
+        // Loading the Vertices
+        H5LTread_dataset_int(group_id,"n_vertices",data);
+        size_t nv = data[0];
+        hid_t gv_id;
+        gv_id = H5Gopen(group_id,"Verts", H5P_DEFAULT);
+        Array<Vec3_t> V;
+
+        for (size_t j=0;j<nv;j++)
+        {
+            String parv;
+            parv.Printf("Verts_%08d",j);
+            double cod[3];
+            H5LTread_dataset_double(gv_id,parv.CStr(),cod);
+            V.Push(Vec3_t(cod[0],cod[1],cod[2]));
+        }
+        
+        // Loading the edges
+        H5LTread_dataset_int(group_id,"n_edges",data);
+        size_t ne = data[0];
+        gv_id = H5Gopen(group_id,"Edges", H5P_DEFAULT);
+        Array<Array <int> > E;
+
+        for (size_t j=0;j<ne;j++)
+        {
+            String parv;
+            parv.Printf("Edges_%08d",j);
+            int cod[2];
+            H5LTread_dataset_int(gv_id,parv.CStr(),cod);
+            Array<int> Ep(2);
+            Ep[0]=cod[0];
+            Ep[1]=cod[1];
+            E.Push(Ep);
+        }
+
+        // Loading the faces
+
+        // Number of faces of the particle
+        H5LTread_dataset_int(group_id,"n_faces",data);
+        size_t nf = data[0];
+        gv_id = H5Gopen(group_id,"Faces", H5P_DEFAULT);
+        Array<Array <int> > F;
+        
+        // Faces
+        for (size_t j=0;j<nf;j++)
+        {
+            String parv;
+            parv.Printf("Faces_%08d",j);
+            hsize_t dim[1];
+            H5LTget_dataset_info(gv_id,parv.CStr(),dim,NULL,NULL);
+            size_t ns = (size_t)dim[0];
+            int co[ns];
+            Array<int> Fp(ns);
+
+            H5LTread_dataset_int(gv_id,parv.CStr(),co);
+            
+            for (size_t k=0;k<ns;k++)
+            {
+                Fp[k] = co[k];
+            }
+
+            F.Push(Fp);
+
+        }
+
+        // Number of cylinders
+        H5LTread_dataset_int(group_id,"n_cylinders",data);
+        size_t nc = data[0];
+
+        Particles.Push (new Particle(-1,V,E,F,OrthoSys::O,OrthoSys::O,0.1,1.0));
+
+        // Loading cylinder data if applicable
+        if (nc>0)
+        {   
+            Vec3_t X0 = 0.5*(*Particles[Particles.Size()-1]->Verts[0] + *Particles[Particles.Size()-1]->Verts[2]);
+            Vec3_t X1 = 0.5*(*Particles[Particles.Size()-1]->Verts[3] + *Particles[Particles.Size()-1]->Verts[5]);
+            Particles[Particles.Size()-1]->Tori.Push     (new Torus(&X0,Particles[Particles.Size()-1]->Verts[0],Particles[Particles.Size()-1]->Verts[1]));
+            Particles[Particles.Size()-1]->Tori.Push     (new Torus(&X1,Particles[Particles.Size()-1]->Verts[3],Particles[Particles.Size()-1]->Verts[4]));
+            Particles[Particles.Size()-1]->Cylinders.Push(new Cylinder(Particles[Particles.Size()-1]->Tori[0],Particles[Particles.Size()-1]->Tori[1],Particles[Particles.Size()-1]->Verts[2],Particles[Particles.Size()-1]->Verts[5]));
+        }
+
+        // Loading vectorial variables
+        Particles[Particles.Size()-1]->x = Vec3_t(X[0],X[1],X[2]);
+        double cd[3];
+        H5LTread_dataset_double(group_id,"xb",cd);
+        Particles[Particles.Size()-1]->xb = Vec3_t(cd[0],cd[1],cd[2]);
+        H5LTread_dataset_double(group_id,"v",cd);
+        Particles[Particles.Size()-1]->v = Vec3_t(cd[0],cd[1],cd[2]);
+        H5LTread_dataset_double(group_id,"w",cd);
+        Particles[Particles.Size()-1]->w = Vec3_t(cd[0],cd[1],cd[2]);
+        H5LTread_dataset_double(group_id,"wb",cd);
+        Particles[Particles.Size()-1]->wb = Vec3_t(cd[0],cd[1],cd[2]);
+        H5LTread_dataset_double(group_id,"I",cd);
+        Particles[Particles.Size()-1]->I = Vec3_t(cd[0],cd[1],cd[2]);
+
+        double cq[4];
+        H5LTread_dataset_double(group_id,"Q",cq);
+        Particles[Particles.Size()-1]->Q = Quaternion_t(cq[0],cq[1],cq[2],cq[3]);
+    
+        // Loading the scalar quantities of the particle
+        double dat[1];
+        H5LTread_dataset_double(group_id,"SR",dat);
+        Particles[Particles.Size()-1]->Props.R = dat[0];
+        H5LTread_dataset_double(group_id,"Rho",dat);
+        Particles[Particles.Size()-1]->Props.rho = dat[0];
+        H5LTread_dataset_double(group_id,"m",dat);
+        Particles[Particles.Size()-1]->Props.m = dat[0];
+        H5LTread_dataset_double(group_id,"V",dat);
+        Particles[Particles.Size()-1]->Props.V = dat[0];
+        H5LTread_dataset_double(group_id,"Diam",dat);
+        Particles[Particles.Size()-1]->Diam = dat[0];
+        H5LTread_dataset_double(group_id,"Dmax",dat);
+        Particles[Particles.Size()-1]->Dmax = dat[0];
+        int datint[1];
+        H5LTread_dataset_int(group_id,"Index",datint);
+        //Particles[Particles.Size()-1]->Index = datint[0];
+        Particles[Particles.Size()-1]->Index = Particles.Size()-1;
+        int tag[1];
+        H5LTread_dataset_int(group_id,"Tag",tag);
+        Particles[Particles.Size()-1]->Tag = tag[0];
+        Particles[Particles.Size()-1]->PropsReady = true;
+
+    }
+
+
+    H5Fclose(file_id);
+    printf("\n%s--- Done --------------------------------------------%s\n",TERM_CLR2,TERM_RST);
+    // Add cohesions
+    printf("\n%s--- Adding cohesive interactons ----------------------%s\n",TERM_CLR2,TERM_RST);
+
+    Array<Array <size_t> > ListBpairs(Particles.Size()-IIndex);//n);
+    if (Cohesion)
+    {
+        //if (fraction<1.0) throw new Fatal("Domain::AddVoroPack: With the Cohesion all particles should be considered, plese change the fraction to 1.0");
+
+        // define some tolerance for comparissions
+        double tol1 = 1.0e-8;
+        double tol2 = 1.0e-3;
+        for (size_t i=IIndex;i<Particles.Size()-1;i++)
+        {
+            Particle * P1 = Particles[i];
+            if (P1->Tag != bTag) continue;
+            for (size_t j=i+1;j<Particles.Size();j++)
+            {
+                Particle * P2 = Particles[j];
+                if (P1->Tag != bTag) continue;
+                if (Distance(P1->x,P2->x)<P1->Dmax+P2->Dmax)
+                {
+                    double R =0.5*(P1->Props.R+P2->Props.R);
+                    for (size_t k=0;k<P1->Faces.Size();k++)
+                    {
+                        Face * F1 = P1->Faces[k];
+                        Vec3_t n1,c1;
+                        F1->Normal  (n1);
+                        F1->Centroid(c1);
+                        bool found = false;
+                        for (size_t l=0;l<P2->Faces.Size();l++)
+                        {
+                            Face * F2 = P2->Faces[l];
+                            Vec3_t n2,c2;
+                            F2->Normal  (n2);
+                            F2->Centroid(c2);
+                            Vec3_t n = 0.5*(n1-n2);
+                            n/=norm(n);
+                            if ((fabs(dot(n1,n2)+1.0)<tol1)
+                               &&(fabs(Distance(c1,*F2)-2*R)<tol2)
+                               &&(fabs(Distance(c2,*F1)-2*R)<tol2))
+                            {
+                                BInteractons.Push(new BInteracton(P1,P2,k,l));
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (found) break;
+                    }
+                }
+            }
+        }
+    }
+}
 #endif
 
 #ifdef USE_VTK

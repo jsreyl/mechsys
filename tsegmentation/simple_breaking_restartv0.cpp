@@ -274,12 +274,21 @@ int main(int argc, char **argv) try
         dom.WriteXDMF(_fs.CStr());
         dom.WritePOV(_fs.CStr());
         std::cout<<"Saving initial domain structure..."<<std::endl;
+        _fs.Printf("%s_initial%04d", filekey.CStr(),Restart);
+        dom.Save(_fs.CStr());
+        std::cout<<"Saved initial domain structure into"<<_fs.CStr()<<std::endl;
       }
     else if (ptype=="voronoi2")
       {
         _fs.Printf("initial_points_%i.xyz", Restart);
         std::cout<<"Reading points for voronoi packing from "<<_fs.CStr()<<"\n";
         dom.AddVoroPackFromPoints (/*Tag*/bTag, /*Spheroradious*/R,  /*Dimentions*/Lx,Ly,Lz,  /*Number of cells*/nx,ny,nz, /*FileKey*/_fs.CStr(), /*Density*/rho,  /*Cohesion*/cohesion,  /*Periodic*/false,  /*Rand seed*/seed,  /*fraction*/1.0);
+        _fs.Printf("%s_%04d", "brick_geometry",Restart);
+        dom.WriteXDMF(_fs.CStr());
+        std::cout<<"Saved initial domain structure into"<<_fs.CStr()<<std::endl;
+        _fs.Printf("%s_initial%04d", filekey.CStr(),Restart);
+        dom.Save(_fs.CStr());
+        std::cout<<"Saved initial domain structure into"<<_fs.CStr()<<std::endl;
       }
     else if (ptype=="tetra")
       {
