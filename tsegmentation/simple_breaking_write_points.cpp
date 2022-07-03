@@ -255,6 +255,7 @@ int main(int argc, char **argv) try
     // user data and domain
     UserData dat;
     DEM::Domain dom(&dat);
+    DEM::Domain sdom(&dat); //Segmentation domain
     String _fs;
     dom.Alpha = verlet;
     dom.Dilate= true;
@@ -262,128 +263,111 @@ int main(int argc, char **argv) try
     int bTag = -1, sTag =-2, mTag =-3;
     std::cout<<"Restart index:"<<Restart<<std::endl;
     std::cout<<"Applying cohesion?:"<<cohesion<<std::endl;
-
-    //XXX: Removing the else ifs for tetra makes this do a free(): invalid pointer error, I have absolutely no idea why. You can try running voro_error to reproduce the error in a minimal way.
-    //I've been chasing this error for half a year and atributing it to other things, but it's as misterious as it gets
-    if (ptype=="voronoi")
-      {
-        dom.AddVoroPack (bTag, R, Lx,Ly,Lz, nx,ny,nz, rho,/*Cohhesion*/ cohesion, false, seed, 1.0);
-        _fs.Printf("initial_points_%i.xyz", Restart);
-        dom.SavePoints(_fs.CStr(), bTag);
-        _fs.Printf("%s_%04d", "brick_geometry",Restart);
-        dom.WriteXDMF(_fs.CStr());
-        dom.WritePOV(_fs.CStr());
-        std::cout<<"Saving initial domain structure..."<<std::endl;
+    if(Restart){
+      std::cout<<"####### RESTART SCHEME #######"<<std::endl;
+      String _fs;
+      // _fs.Printf("run_%04d/%s_initial%04d", Restart-1, filekey.CStr(), Restart-1);
+      // dom.Load(_fs.CStr());
+      _fs.Printf("run_%04d/initial_points_%i.xyz", Restart-1, Restart-1);
+      std::cout<<"Loading Voronoi packing from points file "<<_fs.CStr()<<"..."<<std::endl;
+      dom.AddVoroPackFromPoints (/*Tag*/bTag, /*Spheroradious*/R,  /*Dimentions*/Lx,Ly,Lz,  /*Number of cells*/nx,ny,nz, /*FileKey*/_fs.CStr(), /*Density*/rho,  /*Cohesion*/cohesion,  /*Periodic*/false,  /*Rand seed*/seed,  /*fraction*/1.0);
+      std::cout<<"Loaded initial domain structure!"<<std::endl;
+      // Cut particles according to max strain EF
+      // Previous run generated a file containing particle ids and the planes necessary to cut them so use that here.
+      Array<DEM::Particle*> segParticles(0);
+      Array<size_t> particlesToBreakID(0);
+      size_t _ = 0; //assign data we won't use
+      size_t pID = 0; //Particle to cut
+      double _strainEF = 0.;
+      Vec3_t planeNormal = Vec3_t(0.,0.,0.), planeCentroid = Vec3_t(0.,0.,0.);
+      _fs.Printf("run_%04d/particles_break_index_%04f.res", Restart-1, max_time);
+      // std::ifstream infile("run_0000/particles_break_index_5.600050.res");
+      std::ifstream infile(_fs.CStr());
+      while (infile >> _ >> _strainEF >> pID >> planeNormal(0) >> planeNormal(1) >> planeNormal(2) >> planeCentroid(0) >> planeCentroid(1) >> planeCentroid(2)){
+        particlesToBreakID.Push(pID);
+        std::cout<<"Forming a plane with normal" << planeNormal<<" at "<<planeCentroid<<"\n";
+        DEM::Domain vdom;
+        //vdom.domID = 999999; //Visualization
+        //vdom.domType = 1; //Subdomain
+        vdom.Particles.Push(dom.Particles[pID]);
+        vdom.Dilate = false;
+        vdom.WriteXDMF("plane_no_cut_0");
+        vdom.Dilate = true;
+        vdom.WriteXDMF("plane_no_cut_dilate_0");
+        double arg = dot(planeNormal, OrthoSys::e1);
+        std::cout<<"n: "<<planeNormal<<", e0:"<<OrthoSys::e1<<", dot: "<<arg<<", acos(dot): "<<acos(arg)<<"\n";
+        vdom.AddPlane(sTag, planeCentroid, 0., 5, 5, 1., /*Angle*/acos(arg), /*Axis*/&OrthoSys::e0);
+        std::cout<<"Writing plane cut visualization \n";
+        vdom.Dilate = false;
+        vdom.WriteXDMF("plane_no_cut_1");
+        vdom.Dilate = true;
+        vdom.WriteXDMF("plane_no_cut_dilate_1");
+        Array<Array<int>> intersectionIxs(0);
+        size_t prev_segSize = segParticles.Size();
+        std::cout<<"DOM0: before bisecting segParticles Size:"<<prev_segSize<<"\n";
+        std::cout<<"DOM0: before bisecting intersectionIxs Size:"<<intersectionIxs.Size()<<"\n";
+        BisectPolyhedron(dom.Particles[pID], planeNormal, planeCentroid, segParticles, intersectionIxs, /*mechsysErode*/4, 1e-3, true);
+        size_t nParts = segParticles.Size() - prev_segSize;
+        std::cout<<"Particle "<<pID<<" bisected into "<<nParts<<" parts. Creating new simulation domain...\n";
+        // Make a visualization of just the particle and the plane cutting it
+        vdom.Particles.Clear(); //same as Resize(0);
+        for(size_t i=prev_segSize; i<segParticles.Size();i++){
+          vdom.Particles.Push(segParticles[i]);
+          vdom.Dilate = false;
+          String _f_vis, _f_vis_dil;
+          _f_vis.Printf    ("%s_%04d", "particle_cut", i-prev_segSize); _f_vis_dil.Printf    ("%s_%04d", "particle_cut_dilate", i-prev_segSize);
+          vdom.WriteXDMF(_f_vis.CStr());
+          vdom.Dilate = true;
+          vdom.WriteXDMF(_f_vis_dil.CStr());
+        }
+        vdom.AddPlane(sTag, planeCentroid, 0., 5, 5, 1., /*Angle*/acos(arg), /*Axis*/&OrthoSys::e0);
+        std::cout<<"Writing plane cut visualization \n";
+        vdom.Dilate = false;
+        vdom.WriteXDMF("particle_cut_2");
+        vdom.Dilate = true;
+        vdom.WriteXDMF("particle_cut_dilate_2");
+        vdom.Particles.Clear(); // Clear particles before exiting so they don't get destroyed on domain class destructor
       }
-    else if (ptype=="voronoi2")
-      {
-        _fs.Printf("initial_points_%i.xyz", Restart);
-        std::cout<<"Reading points for voronoi packing from "<<_fs.CStr()<<"\n";
-        dom.AddVoroPackFromPoints (/*Tag*/bTag, /*Spheroradious*/R,  /*Dimentions*/Lx,Ly,Lz,  /*Number of cells*/nx,ny,nz, /*FileKey*/_fs.CStr(), /*Density*/rho,  /*Cohesion*/cohesion,  /*Periodic*/false,  /*Rand seed*/seed,  /*fraction*/1.0);
+      std::cout<<"Starting actual new simulation domain. \n";
+      // sdom.domID = dom.domID + 1;
+      // sdom.domType = 1; //Subdomain
+      sdom.Alpha = verlet;
+      sdom.Dilate = true;
+      sdom.Initialized = false; //Re initialize the particles <- NOTE: Sure we wanna do that?
+      double cam_x=0.0, cam_y=2*Lx, cam_z=0.0;
+      sdom.CamPos = cam_x, cam_y, cam_z;
+      //Copy particles from original domain to new segmented domain
+      for(size_t p=0; p<dom.Particles.Size();p++){
+        if(!particlesToBreakID.Has(p)){//If this particle was not segmented
+          sdom.Particles.Push(dom.Particles[p]);//Just add it as it is
+          sdom.Particles[sdom.Particles.Size()-1]->Index = sdom.Particles.Size()-1; //But reindex them so that they can be adressed properly
+        }
       }
-    else if (ptype=="tetra")
-      {
-        Mesh::Unstructured mesh(/*NDim*/3);
-        mesh.GenBox  (/*O2*/false,/*V*/Lx*Ly*Lz/(0.5*nx*ny*nz),Lx,Ly,Lz);
-        dom.GenFromMesh (mesh, R, rho, true, false);
+      for(size_t sp=0;sp<segParticles.Size();sp++) {
+        sdom.Particles.Push(segParticles[sp]);
+        sdom.Particles[sdom.Particles.Size()-1]->Index = sdom.Particles.Size()-1;
+        // sdom.eigenParticles.Push(segParticles[sp]); // Make these be deleted on domain destruction
+        // DON'T do this, this will create double free or corruption and subsequent segmentation fault
+        // sdom.Particles[sdom.Particles.Size()-1]->Initialize(sdom.Particles.Size()-1);//Initialize this particle
+        // sdom.Particles[sdom.Particles.Size()-1]->InitializeVelocity(dat.dt);//Initialize this particle
       }
-    else
-      {
-        throw new Fatal("Packing for particle type not implemented yet");
-      }
-    // Specific to flexion test
-    std::cout<<"Adding cylinder at "<<Vec3_t(0.,0.,Lz/2.+Rc+R)<<" with radious "<<Rc<<"\n";
-    std::cout<<"Lz: "<<Lz<<" Rc: "<<Rc<<" R: "<<R<<"\n";
-    //Add a cylinder as the connection of two circles of radius R0 and R1 located at X0 and X1
-    dom.AddCylinder(/*Tag*/mTag,/*X0*/Vec3_t(0.,-Lz/2.,Lz/2.+R+Rc),/*R0*/Rc,/*X1*/Vec3_t(0.,Lz/2.,Lz/2.+R+Rc),/*R1*/Rc,/*R*/R,/*rho*/rho);
-    dom.AddCylinder(/*Tag*/sTag,/*X0*/Vec3_t(-Lx/2.+dx,-Lz/2.,-Lz/2.-R-Rc),/*R0*/Rc,/*X1*/Vec3_t(-Lx/2.+dx,Lz/2.,-Lz/2.-R-Rc),/*R1*/Rc,/*R*/R,/*rho*/rho);
-    //Make the third cylinder randomly smaller to give the fracture a predilect direction
-    srand(0);
-    double Rb=Rc-(rand()%10+1)*Rc/100.;
-    std::cout <<"Rb: "<<Rb<<"\n";
-    dom.AddCylinder(/*Tag*/sTag,/*X0*/Vec3_t(Lx/2.-dx,-Lz/2.,-Lz/2.-R-Rc),/*R0*/Rb,/*X1*/Vec3_t(Lx/2.-dx,Lz/2.,-Lz/2.-R-Rc),/*R1*/Rb,/*R*/R,/*rho*/rho);
-
-    // Initialize the UserData structure
-    dat.test = test;
-    dat.A    = Lx*Ly;
-    dat.Am   = Am;
-    dat.ome  = ome;
-    dat.Tf   = Tf;
-    Vec3_t Xmin,Xmax;
-    dom.BoundingBox(Xmin,Xmax);
-    dat.L0   = Xmax - Xmin;
-
-    //Generate planes at the bottom and top
-    // dom.GenBoundingPlane(sTag,R,1.0,true);
-    dom.AddPlane(/*Tag*/sTag,/*Position*/Vec3_t(0.0,0.0,Xmin(2)-R),/*R*/R,/*Lx*/1.5*dat.L0(0),/*Ly*/1.5*dat.L0(1),/*rho*/1.0,/*Angle*/M_PI,/*Axis*/&OrthoSys::e0);//Bottom plane
-    dom.AddPlane(/*Tag*/mTag,/*Position*/Vec3_t(0.0,0.0,Xmax(2)+R),/*R*/R,/*Lx*/1.5*dat.L0(0),/*Ly*/1.5*dat.L0(1),/*rho*/1.0,/*Angle*/M_PI,/*Axis*/&OrthoSys::e0);//Top plane
-
-    // input
-    double cam_x=0.0, cam_y=2*Lx, cam_z=0.0;
-    dom.CamPos = cam_x, cam_y, cam_z;
-
-    //identify the moving lid
-    // dat.p = dom.GetParticle (mTag);
-    // if (test=="tensile")
-    // {
-    //     dat.p->FixVeloc();
-    //     dat.p->v = 0.0, ex*dat.L0(1)/Tf, 0.0;
-    // }
-    dom.GetParticles(mTag,dat.p);//This is the top plane (and upper cylinder if the test is flexion)
-    //if (test=="flexion"){
-    for(size_t i=0; i<dat.p.Size();i++){//Set the top plane and upper cylinder moving down
-      dat.p[i]->FixVeloc();
-      // dat.p[i]->v = 0.0, 0.0, ex*dat.L0(2)/Tf;
-      dat.p[i]->v = 0.0, 0.0, ex*Ly/Tf;
+      std::cout<<"DOM0: Number of particles in previous domain: "<<dom.Particles.Size()<<"\nNumber of particles in new domain: "<<sdom.Particles.Size()<<"\n";
+      // Save new points for the next domain
+      _fs.Printf("initial_points_%i.xyz", Restart);
+      sdom.SavePoints(_fs.CStr(), bTag);
     }
-    std::cout<<"Length of the system: "<<dat.L0(0)<<" "<<dat.L0(1)<<" "<<dat.L0(2)<<std::endl;
-    std::cout<<"Length of the brick: "<<dat.L0(0)<<" "<<dat.L0(1)<<" "<<dat.L0(2)-4.*Rc<<std::endl;
-    std::cout<<"Given velocity for top plane: "<<ex*Ly/Tf<<std::endl;
-    std::cout<<"Velocity for top plane: "<<dat.p[0]->v<<std::endl;
-    //}
-
-    //set the element properties
-    Dict B;
-    B.Set(bTag,"Kn Kt Bn Bt Bm Gn Gt Mu Eps",Kn ,Kt ,Bn ,Bt ,Bm ,Gn ,Gt ,Mu ,Eps);
-    B.Set(sTag,"Kn Kt Bn Bt Bm Gn Gt Mu Eps",Kn ,Kt ,Bn ,Bt ,Bm ,Gn ,Gt ,Mu ,Eps);
-    B.Set(mTag,"Kn Kt Bn Bt Bm Gn Gt Mu Eps",Kn ,Kt ,Bn ,Bt ,Bm ,Gn ,Gt ,Mu ,Eps);
-    dom.SetProps(B);
-
-    // fix -2 particles at the left extreme of the beam
-    // fix static (tag -2) particles, this is the bottom plane (and the two lower cylinders if the test is flexion)
-    Array<DEM::Particle *> p;
-    dom.GetParticles(sTag,p);
-    for(size_t i=0;i<p.Size();i++) p[i]->FixVeloc();
-
-    std::cout<<"Number of interactons for domain:"<<dom.Interactons.Size()<<std::endl;
-    std::cout<<"Number of BInteractons for domain:"<<dom.BInteractons.Size()<<std::endl;
-    std::cout<<"Number of CInteractons for domain:"<<dom.CInteractons.Size()<<std::endl;
-    // XXX: For some misterious reason calculating stress tensors here generates a free() allocation error on Cluster calculation. However if the Stress Tensor is calculated after Solve is initiated this error does not occurr. Weird, but it works for now.
-    // Array<Mat3_t> stresses = StressTensor(dom.Interactons, dom.Particles.Size());
-    // Array<Mat3_t> stresses = StressTensor(dom.Interactons, dom.BInteractons, dom.Particles.Size());
-    // std::cout<<"Stress tensor for particle "<<0<<" : "<<stresses[0]<<"\n";
-    // Array<double> strainEF(dom.Particles.Size());
-    // for(size_t p=0;p<dom.Particles.Size();p++)
-    //   strainEF[p] = StrainEnergyField(stresses[p], /*Poisson's ratio*/0.1);
-
-    // dat.strainEF = strainEF;
-    // std::cout<<"Strain Energy Field for particle "<<0<<" : "<<strainEF[0]<<"\n";
-
-    // dom.Solve (Tf,dt,dtOut, &Setup, &Report, filekey.CStr(), RenderVideo, Nproc);
-    // _fs.Printf("%s%04d", "brick_planes",Restart);
-    // dom.WriteXDMF(_fs.CStr());
-    // dom.WritePOV(_fs.CStr());
-    // std::cout<<"Saving initial domain structure..."<<std::endl;
-    // _fs.Printf("%s_initial%04d", filekey.CStr(),Restart);
-    // dom.Save(_fs.CStr());
-    // std::cout<<"Saved initial domain structure into "<<_fs.CStr()<<"!"<<std::endl;
-    dom.Solve (Tf,dt,dtOut, NULL, &Report, filekey.CStr(), RenderVideo, Nproc);
-    // dom.Solve (Tf,dt,dtOut, NULL, NULL, filekey.CStr(), RenderVideo, Nproc);
+    _fs.Printf("%s_%04d", "brick_geometry",Restart);
+    sdom.WriteXDMF(_fs.CStr());
+    sdom.WritePOV(_fs.CStr());
     std::cout<<"Saving initial domain structure..."<<std::endl;
+    _fs.Printf("%s_initial%04d", filekey.CStr(),Restart);
+    sdom.Save(_fs.CStr());
+    std::cout<<"Saved initial domain structure into "<<_fs.CStr()<<"!"<<std::endl;
+    sdom.Solve (Tf,dt,dtOut, NULL, &Report, filekey.CStr(), RenderVideo, Nproc);
     _fs.Printf("%s_final%04d", filekey.CStr(),Restart);
-    dom.Save(_fs.CStr());
     std::cout<<"Saved final domain structure into "<<_fs.CStr()<<"!"<<std::endl;
+    sdom.Save(_fs.CStr());
     _fs.Printf("final_points_%i.xyz", Restart);
-    dom.SavePoints(_fs.CStr(), bTag);
+    sdom.SavePoints(_fs.CStr(), bTag);
 }
 MECHSYS_CATCH
