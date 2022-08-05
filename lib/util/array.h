@@ -117,6 +117,8 @@ public:
     Value_T         Mean      () const;                            ///< Calculate the mean value (Value_T must have addition operators)
     Value_T         Norm      () const;                            ///< Calculate the norm value (Value_T must have addition operators)
     void            SetValues (Value_T const & V);                 ///< Set all values to be equal to V
+    void            Sort      ();                            ///< Sort values in ascending order
+    void            Sort      (bool (*CompFunc)(Value_T,Value_T));                            ///< Sort values according to a comparison function
     void            Clear     () { Resize(0); }                    ///< Clear array
     void            DelItem   (size_t i);                          ///< Delete item i from array (not efficient)
     void            DelItems  (Array<int> const & Idxs);           ///< Delete items from array (not efficient)
@@ -701,6 +703,26 @@ template<typename Value_T>
 inline void Array<Value_T>::SetValues (Value_T const & V)
 {
     for (size_t i=0; i<Size(); ++i) (*this)[i] = V;
+}
+
+template<typename Value_T>
+inline void Array<Value_T>::Sort ()
+{
+#ifdef USE_STDVECTOR
+  std::sort (std::vector<Value_T>::begin(), std::vector<Value_T>::end());
+#else
+  std::sort(_values, _values+_size);
+#endif
+}
+
+template<typename Value_T>
+inline void Array<Value_T>::Sort (bool (*CompFunc)(Value_T,Value_T))
+{
+#ifdef USE_STDVECTOR
+  std::sort (std::vector<Value_T>::begin(), std::vector<Value_T>::end(), CompFunc);
+#else
+  std::sort(_values, _values+_size, CompFunc);
+#endif
 }
 
 template<typename Value_T>

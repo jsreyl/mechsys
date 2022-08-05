@@ -60,6 +60,8 @@ public:
     Vec3_t         F2;        ///< Provisional force  for particle 2
     Vec3_t         T1;        ///< Provisional torque for particle 1
     Vec3_t         T2;        ///< Provisional torque for particle 2
+    Vec3_t         Xc;        ///< Provisional net position for force application
+    Vec3_t         n;         ///< Provisional net normal vector to surface where the force is applied
 #ifdef USE_THREAD
     pthread_mutex_t lck;              ///< to protect variables in multithreading
 #endif
@@ -93,7 +95,7 @@ public:
     Vec3_t         Fn;        ///< Normal force between elements
     Vec3_t         Fnet;      ///< Net normal force
     Vec3_t         Ftnet;     ///< Net tangential force
-    Vec3_t         Xc;        ///< Net Position of the contact
+    // Vec3_t         Xc;        ///< Net Position of the contact ///XXX: Declared on base class so it's inherited
     Mat3_t         B;         ///< Branch tensor for the study of isotropy
     ListContacts_t Lee;       ///< List of edge-edge contacts 
     ListContacts_t Lvf;       ///< List of vertex-face contacts 
@@ -169,7 +171,7 @@ public:
     double s2,t2;                          ///< Planar coordinates for face F2
     Vec3_t Fnet;                           ///< Net Normal force excerted by the interacton
     Vec3_t Ftnet;                          ///< Net Tangential force excerted by the interacton
-    Vec3_t xnet;                           ///< Position where the force is applied
+    // Vec3_t xnet;                           ///< Position where the force is applied ///XXX: CHANGED TO Xc in base class for cross class consistency
 
 };
 
@@ -260,6 +262,7 @@ inline bool CInteracton::CalcForce (double dt)
     F2     = OrthoSys::O;
     T1     = OrthoSys::O;
     T2     = OrthoSys::O;
+    n      = OrthoSys::O;
     if (norm(P1->x - P2->x) > P1->Dmax + P2->Dmax) return false;
     if (_update_disp_calc_force (P1->Edges     ,P2->Edges     ,Fdee,Lee,dt)) overlap = true;
     if (_update_disp_calc_force (P1->Verts     ,P2->Faces     ,Fdvf,Lvf,dt)) overlap = true;
@@ -371,9 +374,11 @@ inline bool CInteracton::_update_disp_calc_force (FeatureA_T & A, FeatureB_T & B
             First = false;
 
             // update force
-            Vec3_t n = (xf-xi)/dist;
+            // Vec3_t n = (xf-xi)/dist;
+            n = (xf-xi)/dist; ///XXX: n is now declared on class initialization
             Vec3_t x = xi+n*((P1->Props.R*P1->Props.R-P2->Props.R*P2->Props.R+dist*dist)/(2*dist));
-            Xc += x;
+            // Xc += x;
+            Xc = x;
             Vec3_t t1,t2,x1,x2;
             Rotation(P1->w,P1->Q,t1);
             Rotation(P2->w,P2->Q,t2);
@@ -605,6 +610,7 @@ inline bool CInteractonSphere::CalcForce(double dt)
     F2     = OrthoSys::O;
     T1     = OrthoSys::O;
     T2     = OrthoSys::O;
+    n      = OrthoSys::O;
     //bool overlap;
     //overlap = _update_disp_calc_force (P1->Verts,P2->Verts,Fdvv,Lvv,dt);
     //if (Epot>0.0) _update_rolling_resistance(dt);
@@ -649,9 +655,11 @@ inline bool CInteractonSphere::CalcForce(double dt)
         First = false;
 
         //update force
-        Vec3_t n = (xf-xi)/dist;
+        // Vec3_t n = (xf-xi)/dist;
+        n = (xf-xi)/dist; ///XXX: n is now declared on class construction
         Vec3_t x = xi+n*((P1->Props.R*P1->Props.R-P2->Props.R*P2->Props.R+dist*dist)/(2*dist));
-        Xc += x;
+        // Xc += x;
+        Xc = x;
         Vec3_t t1,t2,x1,x2;
         Rotation(P1->w,P1->Q,t1);
         Rotation(P2->w,P2->Q,t2);
@@ -878,7 +886,8 @@ inline bool BInteracton::CalcForce(double dt)
     if (valid)
     {
         // Calculate the normal vector and centroid of the contact face
-        Vec3_t n1,n2,n;
+        // Vec3_t n1,n2,n;
+        Vec3_t n1,n2;//XXX: n is now declared in class constructor
         P1->Faces[IF1]->Normal(n1);
         P2->Faces[IF2]->Normal(n2);
         n = 0.5*(n1-n2);
@@ -895,12 +904,15 @@ inline bool BInteracton::CalcForce(double dt)
         double delta = (dot(pro2-pro1,n)-L0)/L0;
         if (delta<0.0) delta = 0.0;
 
-        xnet        = 0.5*(pro1+pro2);
+        // xnet        = 0.5*(pro1+pro2);
+        Xc          = 0.5*(pro1+pro2);//XXX: Changed to Xc for cross class consistency
         Vec3_t t1,t2,x1,x2;
         Rotation(P1->w,P1->Q,t1);
         Rotation(P2->w,P2->Q,t2);
-        x1 = xnet - P1->x;
-        x2 = xnet - P2->x;
+        // x1 = xnet - P1->x;
+        // x2 = xnet - P2->x;
+        x1 = Xc - P1->x;
+        x2 = Xc - P2->x;
         Vec3_t td   = pro2-pro1-dot(pro2-pro1,n)*n;
         //Vec3_t vrel = -((P2->v-P1->v)+cross(t2,x2)-cross(t1,x1));
         //Vec3_t vt   = vrel - dot(n,vrel)*n;

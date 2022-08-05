@@ -211,7 +211,6 @@ int main(int argc, char **argv) try
 
     // user data and domain
     DEM::Domain dom;
-    DEM::Domain sdom; //Segmentation domain
     String _fs;
     dom.Dilate= true;
     // Tags of bulk, static, moving particles
@@ -242,100 +241,17 @@ int main(int argc, char **argv) try
       // Previous run generated a file containing particle ids and the planes necessary to cut them so use that here.
       Array<DEM::Particle*> segParticles(0);
       Array<size_t> particlesToBreakID(0);
-      size_t _ = 0; //assign data we won't use
       size_t pID = 0; //Particle to cut
-      double _strainEF = 0.;
-      Vec3_t planeNormal = Vec3_t(0.,0.,0.), planeCentroid = Vec3_t(0.,0.,0.);
-      _fs.Printf("run_%04d/particles_break_index_%04f.res", Restart-1, max_time);
+      _fs.Printf("run_%04d/particles_warning_index.res", Restart-1);
       // std::ifstream infile("run_0000/particles_break_index_5.600050.res");
       std::ifstream infile(_fs.CStr());
-      while (infile >> _ >> _strainEF >> pID >> planeNormal(0) >> planeNormal(1) >> planeNormal(2) >> planeCentroid(0) >> planeCentroid(1) >> planeCentroid(2)){
-        particlesToBreakID.Push(pID);
-        std::cout<<"Forming a plane with normal" << planeNormal<<" at "<<planeCentroid<<"\n";
-        planeCentroid=dom.Particles[pID]->x;
-        std::cout<<"Changing centroid to particle centre: " << planeCentroid<<"\n";
-        DEM::Domain vdom;
-        //vdom.domID = 999999; //Visualization
-        //vdom.domType = 1; //Subdomain
+      DEM::Domain vdom;
+      while (infile >> pID){
+        std::cout<<"Writing visualization for particle: " << pID<<"\n";
         vdom.Particles.Push(dom.Particles[pID]);
-        vdom.Dilate = false;
-        vdom.WriteXDMF("plane_no_cut_0");
-        vdom.Dilate = true;
-        vdom.WriteXDMF("plane_no_cut_dilate_0");
-        double arg = dot(planeNormal, OrthoSys::e1);
-        std::cout<<"n: "<<planeNormal<<", e0:"<<OrthoSys::e1<<", dot: "<<arg<<", acos(dot): "<<acos(arg)<<"\n";
-        vdom.AddPlane(sTag, planeCentroid, 0., 5, 5, 1., /*Angle*/acos(arg), /*Axis*/&OrthoSys::e0);
-        std::cout<<"Writing plane cut visualization \n";
-        vdom.Dilate = false;
-        vdom.WriteXDMF("plane_no_cut_1");
-        vdom.Dilate = true;
-        vdom.WriteXDMF("plane_no_cut_dilate_1");
-        Array<Array<int>> intersectionIxs(0);
-        size_t prev_segSize = segParticles.Size();
-        std::cout<<"DOM0: before bisecting segParticles Size:"<<prev_segSize<<"\n";
-        std::cout<<"DOM0: before bisecting intersectionIxs Size:"<<intersectionIxs.Size()<<"\n";
-        BisectPolyhedron(dom.Particles[pID], planeNormal, planeCentroid, segParticles, intersectionIxs, /*mechsysErode*/4, 1e-3, true);
-        size_t nParts = segParticles.Size() - prev_segSize;
-        std::cout<<"Particle "<<pID<<" bisected into "<<nParts<<" parts. Creating new simulation domain...\n";
-        // Make a visualization of just the particle and the plane cutting it
-        vdom.Particles.Clear(); //same as Resize(0);
-        for(size_t i=prev_segSize; i<segParticles.Size();i++){
-          vdom.Particles.Push(segParticles[i]);
-          vdom.Dilate = false;
-          String _f_vis, _f_vis_dil;
-          _f_vis.Printf    ("%s_%04d", "particle_cut", i-prev_segSize); _f_vis_dil.Printf    ("%s_%04d", "particle_cut_dilate", i-prev_segSize);
-          vdom.WriteXDMF(_f_vis.CStr());
-          vdom.Dilate = true;
-          vdom.WriteXDMF(_f_vis_dil.CStr());
-        }
-        vdom.AddPlane(sTag, planeCentroid, 0., 5, 5, 1., /*Angle*/acos(arg), /*Axis*/&OrthoSys::e0);
-        std::cout<<"Writing plane cut visualization \n";
-        vdom.Dilate = false;
-        vdom.WriteXDMF("particle_cut_2");
-        vdom.Dilate = true;
-        vdom.WriteXDMF("particle_cut_dilate_2");
-        vdom.Particles.Clear(); // Clear particles before exiting so they don't get destroyed on domain class destructor
+        vdom.Particles.Last()-> Tag = pID;
       }
-      std::cout<<"Starting actual new simulation domain. \n";
-      // sdom.domID = dom.domID + 1;
-      // sdom.domType = 1; //Subdomain
-      // sdom.Alpha = verlet;
-      sdom.Dilate = true;
-      // sdom.Initialized = false; //Re initialize the particles <- NOTE: Sure we wanna do that?
-      double cam_x=0.0, cam_y=2*Lx, cam_z=0.0;
-      sdom.CamPos = cam_x, cam_y, cam_z;
-      //Copy particles from original domain to new segmented domain
-      for(size_t p=0; p<dom.Particles.Size();p++){
-        if(!particlesToBreakID.Has(p)){//If this particle was not segmented
-          sdom.Particles.Push(dom.Particles[p]);//Just add it as it is
-          sdom.Particles[sdom.Particles.Size()-1]->Index = sdom.Particles.Size()-1; //But reindex them so that they can be adressed properly
-        }
-      }
-      for(size_t sp=0;sp<segParticles.Size();sp++) {
-        sdom.Particles.Push(segParticles[sp]);
-        sdom.Particles[sdom.Particles.Size()-1]->Index = sdom.Particles.Size()-1;
-        // sdom.eigenParticles.Push(segParticles[sp]); // Make these be deleted on domain destruction
-        // DON'T do this, this will create double free or corruption and subsequent segmentation fault
-        // sdom.Particles[sdom.Particles.Size()-1]->Initialize(sdom.Particles.Size()-1);//Initialize this particle
-        // sdom.Particles[sdom.Particles.Size()-1]->InitializeVelocity(dat.dt);//Initialize this particle
-      }
-      std::cout<<"DOM0: Number of particles in previous domain: "<<dom.Particles.Size()<<"\nNumber of particles in new domain: "<<sdom.Particles.Size()<<"\n";
-      // Save new points for the next domain
-      _fs.Printf("initial_points_%i.xyz", Restart);
-      sdom.SavePoints(_fs.CStr(), bTag);
+      vdom.WriteXDMF("particle_warning");
     }
-    _fs.Printf("%s_%04d", "brick_geometry",Restart);
-    sdom.WriteXDMF(_fs.CStr());
-    sdom.WritePOV(_fs.CStr());
-    std::cout<<"Saving initial domain structure..."<<std::endl;
-    _fs.Printf("%s_initial%04d", filekey.CStr(),Restart);
-    sdom.Save(_fs.CStr());
-    std::cout<<"Saved initial domain structure into "<<_fs.CStr()<<"!"<<std::endl;
-    sdom.Solve (0.2,0.0005,1.0, NULL, NULL, filekey.CStr(), 0, Nproc);
-    _fs.Printf("%s_final%04d", filekey.CStr(),Restart);
-    std::cout<<"Saved final domain structure into "<<_fs.CStr()<<"!"<<std::endl;
-    sdom.Save(_fs.CStr());
-    _fs.Printf("final_points_%i.xyz", Restart);
-    sdom.SavePoints(_fs.CStr(), bTag);
 }
 MECHSYS_CATCH

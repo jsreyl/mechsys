@@ -940,9 +940,12 @@ inline void Domain::WriteBF (char const * FileKey)
         Btnet [3*idx  ] = float(BInteractons[i]->Ftnet (0));
         Btnet [3*idx+1] = float(BInteractons[i]->Ftnet (1));
         Btnet [3*idx+2] = float(BInteractons[i]->Ftnet (2));
-        BOrig [3*idx  ] = float(BInteractons[i]->xnet(0));
-        BOrig [3*idx+1] = float(BInteractons[i]->xnet(1)); 
-        BOrig [3*idx+2] = float(BInteractons[i]->xnet(2)); 
+        // BOrig [3*idx  ] = float(BInteractons[i]->xnet(0));
+        // BOrig [3*idx+1] = float(BInteractons[i]->xnet(1)); 
+        // BOrig [3*idx+2] = float(BInteractons[i]->xnet(2)); 
+        BOrig [3*idx  ] = float(BInteractons[i]->Xc(0));
+        BOrig [3*idx+1] = float(BInteractons[i]->Xc(1)); 
+        BOrig [3*idx+2] = float(BInteractons[i]->Xc(2)); 
         BVal  [idx]     = int  (BInteractons[i]->valid);
         BID1  [idx]     = int  (BInteractons[i]->P1->Index);
         BID2  [idx]     = int  (BInteractons[i]->P2->Index);

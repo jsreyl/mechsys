@@ -243,8 +243,8 @@ inline void Particle::init_default_values(int tag, double r, double rho)
     Props.Bm   = 5.0e3;
     Props.Gn   =-0.2;
     Props.Gt   = 0.0;
-    Props.Gv   = 0.0;
-    Props.Gm   = 0.0;
+    Props.Gv   = 1.0; //0.0;
+    Props.Gm   = 1.0; //0.0;
     Props.Mu   = 0.4;
     Props.eps  = 0.01;
     Props.Beta = 0.12;

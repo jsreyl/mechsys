@@ -7,6 +7,6 @@
 3       = ny:          ny (irrelevant for spheres)
 7       = nz:          nz (irrelevant for spheres)
 3.0     = rho:         rho
-4       = Restart:     Restart state, 0 Don't restart, 1, 2, ... restart number
-2.700000 = max_time:    Time at which the maximum strain energy field is found from previous run
+1       = Restart:     Restart state, 0 Don't restart, 1, 2, ... restart number
+2.200000 = max_time:    Time at which the maximum strain energy field is found from previous run
 1       = cohesion:    Whether or not to add cohesion between particles

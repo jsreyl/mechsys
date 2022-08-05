@@ -44,13 +44,17 @@ struct UserData
   double             Am;           // vibration amplitude
   double             ome;          // vibration frequency
   double             sz;           // Stress State
+  double             vz;           // Velocity for compression in flexural strength test
   double             Tf;           // Final time
+  double             Tcomp;        // Maximum time for compression; after this stop compressing and equilibrate
   Vec3_t             L0;           // Initial dimensions
   int                bTag;         // Bulk particle tag
   int                sTag;         // Static particle tag
   int                mTag;         // Mobile particle tag
   Array<double>      strainEF;     // Array of strain energy field values for all particles in the domain
   std::ofstream      oss_ss;       // file for stress strain data
+  bool               verbose;      // Whether to print check statements or not
+  bool               compress;// Perform flexural test by compressing with the upper plane or not
 };
 
 //Setup is called on EACH TIME STEP, this way we can calculate stresses on specific particles or impose boundary conditions
@@ -60,6 +64,32 @@ void Setup (DEM::Domain & Dom, void * UD)
   // std::cout<<"SETUP at time "<<Dom.Time<<"\n";
   //Use flexion as the test
   UserData & dat = (*static_cast<UserData *>(UD));
+  //if((Dom.Time > dat.Tcomp) && dat.compress){ //Stop moving the plane after 1.5 seconds (approximately 25micrometers from the start)
+  // if(Dom.Time < dat.Tcomp && !dat.compress){ //Stop moving the plane after 1.5 seconds (approximately 25micrometers from the start)
+  //   for(size_t i=0; i<dat.p.Size();i++){//Set the top plane and upper cylinder moving down
+  //     dat.p[i]->FixVeloc(0.0, 0.0, dat.vz);
+  //     dat.compress = true;
+  //     // std::cout<<'a'<<dat.p[i]->v<<std::endl;
+  //     // dat.p[i]->v = 0.0, 0.0, dat.vz;
+  //     // std::cout<<'b'<<dat.p[i]->v<<std::endl;
+  //   }
+  // } else if (Dom.Time > dat.Tcomp && dat.compress) {
+  //   if(dat.compress) std::cout<<"SETUP: Stopping plane with velocity"<<dat.p[0]->v<<std::endl;
+  //   for(size_t i=0; i<dat.p.Size();i++){//Set the top plane and upper cylinder moving down
+  //     // dat.p[i]->v = 0.0, 0.0, ex*dat.L0(2)/Tf;
+  //     dat.p[i]->v = 0.0, 0.0, 0.0;
+  //     std::cout<<'a'<<dat.p[i]->v<<std::endl;
+  //     dat.p[i]->FixVeloc();
+  //     std::cout<<'b'<<dat.p[i]->v<<std::endl;
+  //   }
+  //   if(dat.compress) std::cout<<"SETUP: Moving plane velocity after stopping"<<dat.p[0]->v<<std::endl;
+  //   if(dat.compress) std::cout<<"SETUP: Final position of the top plane 0: "<<dat.p[0]->x<<std::endl;
+  //   if(dat.compress) std::cout<<"SETUP: Final position of the top plane 1: "<<dat.p[1]->x<<std::endl;
+  //   dat.compress = false;
+  // }
+  std::cout<<'a'<<dat.p[0]->v<<std::endl;
+  std::cout<<'b'<<dat.p[1]->v<<std::endl;
+  /*
   //Average strain
   double avgFz=0.;
   for(size_t i=0; i<dat.p.Size();i++){
@@ -67,6 +97,7 @@ void Setup (DEM::Domain & Dom, void * UD)
   }
   avgFz/=dat.p.Size();
   dat.sz = avgFz/dat.A;
+  */
 }
 
 // Report is called every dtOut steps before particle initialization (i.e. force assignments) so it uses the values of the timestep immediately before to calculate and report results.
@@ -82,6 +113,8 @@ void Report (DEM::Domain & Dom, void * UD)
 {
   std::cout<<"REPORT at time "<<Dom.Time<<"\n";
   UserData & dat = (*static_cast<UserData *>(UD));
+  std::cout<<"Velocity for top plane: "<<dat.p[1]->v<<std::endl;
+  std::cout<<"Position for top plane: "<<dat.p[1]->x<<std::endl;
   // Use flexion as the test
   //Calculate the strain energy field for all the particles in the domain
   Array<Mat3_t> stresses = StressTensor(Dom.Interactons, Dom.BInteractons, Dom.Particles.Size());
@@ -107,13 +140,6 @@ void Report (DEM::Domain & Dom, void * UD)
     }
     strainEF[p] = StrainEnergyField(stresses[p], /*Poisson's ratio*/0.1);
     if(strainEF[p] > max_strainEF) max_strainEF = strainEF[p];
-    // if(strainEF[p] > max_strains.Last()) { //If we found a larger than the least valued max_strain, add it to the array
-    //   // And reorder the arrays
-    //   for(size_t i=max_strains.Size(); i>=2;i--){
-    //     max_strains[i-1] = max_strains[i-2];
-    //   }
-    //   max_strains[0]=max_strainEF;
-    // }
   }
   std::cout<<"Strain energy field calculated! \n";
   std::cout<<"maximum strainEF: "<<max_strainEF<<"\n";
@@ -140,67 +166,78 @@ void Report (DEM::Domain & Dom, void * UD)
       double sz_0 = dat.p[0]->F(2)/dat.A;
       dat.oss_ss << Util::_10_6 << Dom.Time << Util::_8s << dat.sz  << Util::_8s << sz_0 << Util::_8s << ex << Util::_8s << ey << Util::_8s << ez << Util::_8s << max_strainEF << std::endl;
       std::cout << Util::_10_6 << Dom.Time << Util::_8s << dat.sz  << Util::_8s << sz_0 << Util::_8s << ex << Util::_8s << ey << Util::_8s << ez << Util::_8s << max_strainEF << std::endl;
-      // ReportParticles(Dom);
     }
   else dat.oss_ss.close();
-  // Check that no particle goes beyond the strain energy field threshold and write its index to a file if it does
-  // Array<size_t> particlesToBreakID(0);
-  // std::cout<<"Created particlesToBreakID array with size"<<particlesToBreakID.Size()<<"\n";
-  // double strainEFThr = max_strainEF*0.9; //3.0; // Strain Energy Field breaking threshold
-  // for(size_t i=0; i<strainEF.Size(); i++) if (strainEF[i]>strainEFThr) particlesToBreakID.Push(i);
-  // NOTE: Select the top 10% of the particles to break
-  Array<size_t> particlesToBreakID(0);
-  std::cout<<"Created particlesToBreakID array with size"<<particlesToBreakID.Size()<<"\n";
-  Array<double> max_strains = strainEF;
-  max_strains.Sort(); // sort  strainEFs in ascending order
-  std::cout<<"Strain EF: "<<strainEF<<"\n";
-  std::cout<<"Max strains: "<<max_strains<<"\n";
-  double strainEFThr = 0.1*max_strains.Last(); //3.0; // Strain Energy Field breaking threshold
-  // double strainEFThr = max_strains[9*Dom.Particles.Size()/10]; //3.0; // Strain Energy Field breaking threshold
-  std::cout<<"Strain energy field threshold for 90th quantile"<<strainEFThr<<"\n";
-  for(size_t i=0; i<strainEF.Size(); i++) if (strainEF[i]>strainEFThr && Dom.Particles[i]->Tag == dat.bTag) particlesToBreakID.Push(i); //Add only bulk particles 
-  if (particlesToBreakID.Size() == 0){
-    std::cout<<"No particles to break... yet\n";
-  } else {
-    std::cout<<"Particles surpassing breaking theshold:"<<particlesToBreakID<<"\n";
-    String _fs;
-    _fs.Printf("%s_break_index_%04f.res", "particles", Dom.Time);
-    std::ofstream ofbreak;
-    ofbreak.open(_fs.CStr());
-    // Re calculate stresses since the matrices are broken in diagonalization procedure
-    // stresses = StressTensor(Dom.Interactons, Dom.Particles.Size());
-    stresses = StressTensor(Dom.Interactons, Dom.BInteractons, Dom.Particles.Size());
-    for(size_t pB=0; pB<particlesToBreakID.Size(); pB++){
-      size_t pID = particlesToBreakID[pB];
-      std::cout<<"Breaking particle with index "<<pID<<"\n";
-      std::cout<<"Located at: "<<Dom.Particles[pID]->x<<"\n";
-      // Build plane using the principal stress component and the particle geometric center
-      // Calculate the first component of the stress tensor
-      Vec3_t eigvalR = Vec3_t(0.,0.,0.), _ = Vec3_t(0.,0.,0.), stress_v0 = Vec3_t(0.,0.,0.), stress_v1 = Vec3_t(0.,0.,0.), stress_v2 = Vec3_t(0.,0.,0.);
-      Mat3_t _stress = stresses[pID];//Create a new matrix with the stress tensor since EigNonsymm destroys the matrices it uses
-      EigNonsymm(_stress, eigvalR, _, stress_v0, stress_v1, stress_v2, _, _, _);
-      Array<Vec3_t> stress_vs(3);
-      stress_vs[0] = stress_v0; stress_vs[1] = stress_v1; stress_vs[2] = stress_v2;
-      std::cout<<"CHECK: Stress tensor with eigenvalues "<<eigvalR<<" and eigenvectors "<<stress_vs<<std::endl;
-      // EigNonsymm returns unordered eigenvalues and eigenvectors, we want sigma_1>sigma_2>sigma_3
-      size_t largest_id = 0;
-      double largest_stress = eigvalR(0);
-      for(size_t i=1; i<3;i++) {
-        if (eigvalR(i) > largest_stress){
-          largest_stress = eigvalR(i); largest_id = i;
-        }
+  if (Dom.Time > dat.Tcomp){ // After the compression start looking into how to break the particles
+    if (dat.compress) {
+      std::cout<<"REPORT: Stopping plane with velocity"<<dat.p[0]->v<<std::endl;
+      for(size_t i=0; i<dat.p.Size();i++){//Set the top plane and upper cylinder moving down
+        // dat.p[i]->v = 0.0, 0.0, ex*dat.L0(2)/Tf;
+        dat.p[i]->v = 0.0, 0.0, 0.0;
+        dat.p[i]->xb = dat.p[i]->x; //Force velocities in the Verlet algorithm to be zero by setting particle displacement to zero
+        //dat.p[i]->FixVeloc();
+        //std::cout<<'b'<<dat.p[i]->v<<std::endl;
       }
-      std::cout<<"CHECK: Largest stress eigenvalue "<<eigvalR(largest_id)<<" and eigenvector "<<stress_vs[largest_id]<<std::endl;
-      if(eigvalR(largest_id)<0.) std::cout<<"WARNING: All eigenvalues are negative for particle "<<pID<<std::endl;
-      Vec3_t planeNormal = Vec3_t(0.,0.,0.), planeCentroid = Vec3_t(0.,0.,0.);
-      planeNormal=stress_vs[largest_id]/norm(stress_vs[largest_id]);
-      for(size_t v=0; v<Dom.Particles[pID]->Verts.Size(); v++) planeCentroid+=*(Dom.Particles[pID]->Verts[v]);
-      planeCentroid/=Dom.Particles[pID]->Verts.Size();
-      std::cout<<"Cutting plane with normal" << planeNormal<<" at "<<planeCentroid<<"\n";
-      // Print particle number, strainEF, ID in the domain, cutting plane normal, cutting plane centre
-      ofbreak << Util::_2 << pB << Util::_8s << strainEF[pID] << Util::_2 << pID << Util::_8s << planeNormal(0) << Util::_8s << planeNormal(1) << Util::_8s << planeNormal(2) << Util::_8s << planeCentroid(0) << Util::_8s << planeCentroid(1) << Util::_8s << planeCentroid(2) << std::endl;
+      std::cout<<"REPORT: Moving plane velocity after stopping"<<dat.p[1]->v<<std::endl;
+      std::cout<<"REPORT: Final position of the top plane: "<<dat.p[1]->x<<std::endl;
+      dat.compress = false;
     }
-    ofbreak.close();
+    // Check that no particle goes beyond the strain energy field threshold and write its index to a file if it does
+    // NOTE: Select the top 10% of the particles to break
+    Array<size_t> particlesToBreakID(0);
+    if(dat.verbose) std::cout<<"Created particlesToBreakID array with size"<<particlesToBreakID.Size()<<"\n";
+    // Array<double> max_strains = strainEF;
+    // max_strains.Sort(); // sort  strainEFs in ascending order
+    // if (dat.verbose) std::cout<<"Strain EF: "<<strainEF<<"\n";
+    // if (dat.verbose) std::cout<<"Max strains: "<<max_strains<<"\n";
+    // double strainEFThr = 0.1*max_strains.Last(); //3.0; // Strain Energy Field breaking threshold
+    // double strainEFThr = max_strains[9*Dom.Particles.Size()/10]; //3.0; // Strain Energy Field breaking threshold
+    // std::cout<<"Strain energy field threshold for 90th quantile"<<strainEFThr<<"\n";
+    double strainEFThr = max_strainEF*0.1; //3.0; // Strain Energy Field breaking threshold
+    for(size_t i=0; i<strainEF.Size(); i++) if (strainEF[i]>strainEFThr && Dom.Particles[i]->Tag == dat.bTag) particlesToBreakID.Push(i); //Add only bulk particles
+    if (particlesToBreakID.Size() == 0){
+      std::cout<<"No particles to break... yet\n";
+    } else {
+      std::cout<<"Particles surpassing breaking theshold:"<<particlesToBreakID<<"\n";
+      String _fs;
+      _fs.Printf("%s_break_index_%04f.res", "particles", Dom.Time);
+      std::ofstream ofbreak;
+      ofbreak.open(_fs.CStr());
+      // Re calculate stresses since the matrices are broken in diagonalization procedure
+      // stresses = StressTensor(Dom.Interactons, Dom.Particles.Size());
+      stresses = StressTensor(Dom.Interactons, Dom.BInteractons, Dom.Particles.Size());
+      for(size_t pB=0; pB<particlesToBreakID.Size(); pB++){
+        size_t pID = particlesToBreakID[pB];
+        std::cout<<"Breaking particle with index "<<pID<<"\n";
+        if(dat.verbose) std::cout<<"Located at: "<<Dom.Particles[pID]->x<<"\n";
+        // Build plane using the principal stress component and the particle geometric center
+        // Calculate the first component of the stress tensor
+        Vec3_t eigvalR = Vec3_t(0.,0.,0.), _ = Vec3_t(0.,0.,0.), stress_v0 = Vec3_t(0.,0.,0.), stress_v1 = Vec3_t(0.,0.,0.), stress_v2 = Vec3_t(0.,0.,0.);
+        Mat3_t _stress = stresses[pID];//Create a new matrix with the stress tensor since EigNonsymm destroys the matrices it uses
+        EigNonsymm(_stress, eigvalR, _, stress_v0, stress_v1, stress_v2, _, _, _);
+        Array<Vec3_t> stress_vs(3);
+        stress_vs[0] = stress_v0; stress_vs[1] = stress_v1; stress_vs[2] = stress_v2;
+        if(dat.verbose) std::cout<<"CHECK: Stress tensor with eigenvalues "<<eigvalR<<" and eigenvectors "<<stress_vs<<std::endl;
+        // EigNonsymm returns unordered eigenvalues and eigenvectors, we want sigma_1>sigma_2>sigma_3
+        size_t largest_id = 0;
+        double largest_stress = eigvalR(0);
+        for(size_t i=1; i<3;i++) {
+          if (eigvalR(i) > largest_stress){
+            largest_stress = eigvalR(i); largest_id = i;
+          }
+        }
+        if(dat.verbose) std::cout<<"CHECK: Largest stress eigenvalue "<<eigvalR(largest_id)<<" and eigenvector "<<stress_vs[largest_id]<<std::endl;
+        if(eigvalR(largest_id)<0.) std::cout<<"WARNING: All eigenvalues are negative for particle "<<pID<<std::endl;
+        Vec3_t planeNormal = Vec3_t(0.,0.,0.), planeCentroid = Vec3_t(0.,0.,0.);
+        planeNormal=stress_vs[largest_id]/norm(stress_vs[largest_id]);
+        for(size_t v=0; v<Dom.Particles[pID]->Verts.Size(); v++) planeCentroid+=*(Dom.Particles[pID]->Verts[v]);
+        planeCentroid/=Dom.Particles[pID]->Verts.Size();
+        if(dat.verbose) std::cout<<"Cutting plane with normal" << planeNormal<<" at "<<planeCentroid<<"\n";
+        // Print particle number, strainEF, ID in the domain, cutting plane normal, cutting plane centre
+        ofbreak << Util::_2 << pB << Util::_8s << strainEF[pID] << Util::_2 << pID << Util::_8s << planeNormal(0) << Util::_8s << planeNormal(1) << Util::_8s << planeNormal(2) << Util::_8s << planeCentroid(0) << Util::_8s << planeCentroid(1) << Util::_8s << planeCentroid(2) << std::endl;
+      }
+      ofbreak.close();
+    }
   }
   std::cout<<"REPORT finish!\n";
 }
@@ -294,6 +331,8 @@ int main(int argc, char **argv) try
     String _fs;
     dom.Alpha = verlet;
     dom.Dilate= true;
+    dat.Tcomp = max_time;
+    dat.verbose = false;
     // Tags of bulk, static, moving particles
     int bTag = -1, sTag =-2, mTag =-3;
     std::cout<<"Restart index:"<<Restart<<std::endl;
@@ -396,10 +435,14 @@ int main(int argc, char **argv) try
       // dat.p[i]->v = 0.0, 0.0, ex*dat.L0(2)/Tf;
       dat.p[i]->v = 0.0, 0.0, ex*Ly/Tf;
     }
+    dat.vz = ex*Ly/Tf;
+    std::cout<<"Indices of the cilinder and plane: "<<dat.p[0]->Index<<" "<<dat.p[1]->Index<<std::endl;
+    dat.compress = true; // Start the simulation compressing the system as in a flexural strngth test
     std::cout<<"Length of the system: "<<dat.L0(0)<<" "<<dat.L0(1)<<" "<<dat.L0(2)<<std::endl;
     std::cout<<"Length of the brick: "<<dat.L0(0)<<" "<<dat.L0(1)<<" "<<dat.L0(2)-4.*Rc<<std::endl;
     std::cout<<"Given velocity for top plane: "<<ex*Ly/Tf<<std::endl;
     std::cout<<"Velocity for top plane: "<<dat.p[0]->v<<std::endl;
+    std::cout<<"Starting position of the top plane: "<<dat.p[1]->x<<std::endl;
     //}
 
     //set the element properties
