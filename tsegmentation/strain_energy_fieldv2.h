@@ -13,6 +13,10 @@
 #include <mechsys/mesh/structured.h>
 #include <mechsys/linalg/matvec.h>
 
+template<class Interactons_T>
+Vec3_t CalculateForce(Interactons_T Interactons, size_t pID);
+//Vec3_t CalculateForce(Array<DEM::Interacton*> Interactons, size_t pID);
+//Vec3_t CalculateForce(Array<DEM::BInteracton*> Interactons, size_t pID);
 size_t CalculateContacts(Array<DEM::Interacton*> Interactons, size_t pID);
 size_t CalculateContacts(Array<DEM::BInteracton*> Interactons, size_t pID);
 size_t CalculateContacts(Array<DEM::Interacton*> Interactons, Array<DEM::BInteracton*> BInteractons, size_t pID);
@@ -20,6 +24,16 @@ Array <Mat3_t> StressTensor(Array<DEM::Interacton*> Interactons, size_t n_p);//C
 Array <Mat3_t> StressTensor(Array<DEM::BInteracton*> Interactons, size_t n_p);//Calculate all Stress Tensors for the domain's cohesive interactions
 Array <Mat3_t> StressTensor(Array<DEM::Interacton*> Interactons, Array<DEM::BInteracton*> BInteractons, size_t n_p);//Calculate all Stress Tensors for the domain's cohesive interactions
 double StrainEnergyField(Mat3_t S, double nu, bool verbose = false);//Calculate the strain energy field given a Stress Tensor matrix
+
+template<class Interactons_T>
+inline Vec3_t CalculateForce(Interactons_T Interactons, size_t pID) {
+  Vec3_t F = Vec3_t(0., 0., 0.);
+  for(size_t i=0; i<Interactons.Size();i++){
+	  if (Interactons[i]->I1 == pID ) F +=Interactons[i]->F1;
+	  if (Interactons[i]->I2 == pID ) F +=Interactons[i]->F2;
+  }
+  return F;
+}
 
 inline size_t CalculateContacts(Array<DEM::Interacton*> Interactons, size_t pID) {
   size_t Nc = 0;

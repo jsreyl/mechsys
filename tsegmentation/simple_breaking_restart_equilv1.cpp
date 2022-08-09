@@ -38,6 +38,7 @@ struct UserData
 {
   Array<DEM::Particle *>    p;            // the array of particles at which the force is to be applied
   Array<DEM::Particle *>    ps;           // the array of particles that should be static at every moment
+  Array<DEM::Particle *>    pt;           // the array of particles whose forces we keep track of
   Array<Vec3_t  >    vm0;          // value of the vectors close to the middle section
   Array<Vec3_t *>    vm;           // pointers to the vectors close to the middle section
   String             test;         // Type of test vibraiton or tension
@@ -157,11 +158,12 @@ void Report (DEM::Domain & Dom, void * UD)
       // Output of the current time, the stress state sx, and the strains ex,ey and ez
       dat.oss_ss << Util::_10_6 << "Time" << Util::_8s << "sz_0" << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << "ex" << Util::_8s << "ey" << Util::_8s << "ez" << Util::_8s << "max_strainEF" << std::endl;
       std::cout << Util::_10_6 << "Time" << Util::_8s << "sz_0" << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << "ex" << Util::_8s << "ey" << Util::_8s << "ez" << Util::_8s << "max_strainEF" << std::endl;
-      std::cout <<"Upper cylinder:"<< Util::_2 << "ID" << Util::_10_6 << "Time" << Util::_8s << "x" << Util::_8s << "y" << Util::_8s << "z" << Util::_8s << Util::_8s << "vx" << Util::_8s << "vy" << Util::_8s << "vz" << Util::_8s << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << Util::_8s << "strainEF" << Util::_2 << "Nc" << std::endl;
-      std::cout <<"Upper plane:"<< Util::_2 << "ID" << Util::_10_6 << "Time" << Util::_8s << "x" << Util::_8s << "y" << Util::_8s << "z" << Util::_8s << Util::_8s << "vx" << Util::_8s << "vy" << Util::_8s << "vz" << Util::_8s << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << Util::_8s << "strainEF" << Util::_2 << "Nc" << std::endl;
-      std::cout <<"Lower cylinder a:"<< Util::_2 << "ID" << Util::_10_6 << "Time" << Util::_8s << "x" << Util::_8s << "y" << Util::_8s << "z" << Util::_8s << Util::_8s << "vx" << Util::_8s << "vy" << Util::_8s << "vz" << Util::_8s << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << Util::_8s << "strainEF"<< Util::_2 << "Nc" << std::endl;
-      std::cout <<"Lower cylinder b:"<< Util::_2 << "ID" << Util::_10_6 << "Time" << Util::_8s << "x" << Util::_8s << "y" << Util::_8s << "z" << Util::_8s << Util::_8s << "vx" << Util::_8s << "vy" << Util::_8s << "vz" << Util::_8s << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << Util::_8s << "strainEF"<< Util::_2 << "Nc" << std::endl;
-      std::cout <<"Lower plane:"<< Util::_2 << "ID" << Util::_10_6 << "Time" << Util::_8s << "x" << Util::_8s << "y" << Util::_8s << "z" << Util::_8s << Util::_8s << "vx" << Util::_8s << "vy" << Util::_8s << "vz" << Util::_8s << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << Util::_8s << "strainEF" << Util::_2 << "Nc" << std::endl;
+      std::cout <<"Upper cylinder:"<< Util::_2 << "ID" << Util::_10_6 << "Time" << Util::_8s << "x" << Util::_8s << "y" << Util::_8s << "z" << Util::_8s << "vx" << Util::_8s << "vy" << Util::_8s << "vz" << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << "strainEF" << Util::_2 << "Nc" << std::endl;
+      std::cout <<"Upper plane:"<< Util::_2 << "ID" << Util::_10_6 << "Time" << Util::_8s << "x" << Util::_8s << "y" << Util::_8s << "z" << Util::_8s << Util::_8s << "vx" << Util::_8s << "vy" << Util::_8s << "vz" << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << "strainEF" << Util::_2 << "Nc" << std::endl;
+      std::cout <<"Lower cylinder a:"<< Util::_2 << "ID" << Util::_10_6 << "Time" << Util::_8s << "x" << Util::_8s << "y" << Util::_8s << "z" << Util::_8s << "vx" << Util::_8s << "vy" << Util::_8s << "vz" << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << "strainEF"<< Util::_2 << "Nc" << std::endl;
+      std::cout <<"Lower cylinder b:"<< Util::_2 << "ID" << Util::_10_6 << "Time" << Util::_8s << "x" << Util::_8s << "y" << Util::_8s << "z" << Util::_8s << "vx" << Util::_8s << "vy" << Util::_8s << "vz" << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << Util::_8s << "strainEF"<< Util::_2 << "Nc" << std::endl;
+      std::cout <<"Lower plane:"<< Util::_2 << "ID" << Util::_10_6 << "Time" << Util::_8s << "x" << Util::_8s << "y" << Util::_8s << "z" << Util::_8s << "vx" << Util::_8s << "vy" << Util::_8s << "vz" << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << "strainEF" << Util::_2 << "Nc" << std::endl;
+      std::cout <<"Upper particle:"<< Util::_2 << "ID" << Util::_10_6 << "Time" << Util::_8s << "x" << Util::_8s << "y" << Util::_8s << "z" << Util::_8s << Util::_8s << "vx" << Util::_8s << "vy" << Util::_8s << "vz" << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << "BFx" << Util::_8s << "BFy" << Util::_8s << "BFz" << Util::_8s << "CFx" << Util::_8s << "CFy" << Util::_8s << "CFz" << Util::_8s << "strainEF" << Util::_2 << "Nc" << std::endl;
     }
   if (!Dom.Finished)
     {
@@ -190,6 +192,11 @@ void Report (DEM::Domain & Dom, void * UD)
       std::cout <<"Lower cylinder b:"<< Util::_2 << pID << Util::_10_6 << Dom.Time << Util::_8s << xp(0) << Util::_8s << xp(1) << Util::_8s << xp(2) << Util::_8s << vp(0) << Util::_8s << vp(1) << Util::_8s << vp(2) << Util::_8s << Fp(0) << Util::_8s << Fp(1) << Util::_8s << Fp(2) << Util::_8s << sp << Util::_2 << Nc << std::endl;
       xp = dat.ps[2]->x; vp = dat.ps[2]->v; Fp = dat.ps[2]->F; pID = dat.ps[2]->Index; sp = strainEF[pID]; Nc = CalculateContacts(Dom.Interactons, Dom.BInteractons, pID);
       std::cout <<"Lower plane:"<< Util::_2 << pID << Util::_10_6 << Dom.Time << Util::_8s << xp(0) << Util::_8s << xp(1) << Util::_8s << xp(2) << Util::_8s << vp(0) << Util::_8s << vp(1) << Util::_8s << vp(2) << Util::_8s << Fp(0) << Util::_8s << Fp(1) << Util::_8s << Fp(2) << Util::_8s << sp << Util::_2 << Nc << std::endl;
+      // Particle to track
+      xp = dat.pt[0]->x; vp = dat.pt[0]->v; Fp = dat.pt[0]->F; pID = dat.pt[0]->Index; sp = strainEF[pID]; Nc = CalculateContacts(Dom.Interactons, Dom.BInteractons, pID);
+      Vec3_t BFp = CalculateForce(Dom.BInteractons, pID);
+      Vec3_t CFp = CalculateForce(Dom.CInteractons, pID);
+      std::cout <<"Upper particle:"<< Util::_2 << pID << Util::_10_6 << Dom.Time << Util::_8s << xp(0) << Util::_8s << xp(1) << Util::_8s << xp(2) << Util::_8s << vp(0) << Util::_8s << vp(1) << Util::_8s << vp(2) << Util::_8s << Fp(0) << Util::_8s << Fp(1) << Util::_8s << Fp(2) << Util::_8s << BFp(0) << Util::_8s << BFp(1) << Util::_8s << BFp(2) << Util::_8s << CFp(0) << Util::_8s << CFp(1) << Util::_8s << CFp(2) << Util::_8s << sp << Util::_2 << Nc << std::endl;
     }
   else dat.oss_ss.close();
   if (Dom.Time > dat.Tcomp){ // After the compression start looking into how to break the particles
@@ -506,6 +513,8 @@ int main(int argc, char **argv) try
     std::cout<<"Number of interactons for domain:"<<dom.Interactons.Size()<<std::endl;
     std::cout<<"Number of BInteractons for domain:"<<dom.BInteractons.Size()<<std::endl;
     std::cout<<"Number of CInteractons for domain:"<<dom.CInteractons.Size()<<std::endl;
+    // XXX : Keeping track of particles forces
+    dat.pt.Push(dom.Particles[204]); //Keep track of the particle with index 204 (Touching the upper cylinder
     // XXX: For some misterious reason calculating stress tensors here generates a free() allocation error on Cluster calculation. However if the Stress Tensor is calculated after Solve is initiated this error does not occurr. Weird, but it works for now.
     // Array<Mat3_t> stresses = StressTensor(dom.Interactons, dom.Particles.Size());
     // Array<Mat3_t> stresses = StressTensor(dom.Interactons, dom.BInteractons, dom.Particles.Size());
