@@ -15,8 +15,6 @@
 
 template<class Interactons_T>
 Vec3_t CalculateForce(Interactons_T Interactons, size_t pID);
-//Vec3_t CalculateForce(Array<DEM::Interacton*> Interactons, size_t pID);
-//Vec3_t CalculateForce(Array<DEM::BInteracton*> Interactons, size_t pID);
 size_t CalculateContacts(Array<DEM::Interacton*> Interactons, size_t pID);
 size_t CalculateContacts(Array<DEM::BInteracton*> Interactons, size_t pID);
 size_t CalculateContacts(Array<DEM::Interacton*> Interactons, Array<DEM::BInteracton*> BInteractons, size_t pID);
