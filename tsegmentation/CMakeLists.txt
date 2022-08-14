@@ -24,6 +24,8 @@ INCLUDE(${MECHSYSSANDBOX_SOURCE_DIR}/UseMECHSYS.cmake)
 
 SET(PROGS
     simple_restart
+    test_cube
+    three_cubes
     test_beam
     test_beam_from_file
     simple_breaking_restartv0

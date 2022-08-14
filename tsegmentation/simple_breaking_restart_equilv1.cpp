@@ -32,7 +32,7 @@
 
 //User
 #include "plane_segmentation.h"
-#include "strain_energy_fieldv2.h"
+#include "strain_energy_fieldv3.h"
 
 struct UserData
 {
@@ -124,6 +124,7 @@ void Report (DEM::Domain & Dom, void * UD)
   Array<double> strainEF(Dom.Particles.Size());
   double max_strainEF = 0.;
   // Array<double> max_strains(Dom.Particles.Size()/10);
+  #pragma omp parallel for shared(strainEF, stresses) reduction(max:max_strainEF)
   for(size_t p=0; p<Dom.Particles.Size();p++){ //Calculate strain energy field for each particle
     if (stresses[p](0,0)>10000. or stresses[p](0,0)<-10000.){
       std::cout<<"WARNING: Encountered large stress tensor components, printing interacrons.\n";
@@ -181,19 +182,20 @@ void Report (DEM::Domain & Dom, void * UD)
       Vec3_t xp = dat.p[0]->x, vp = dat.p[0]->v, Fp = dat.p[0]->F;
       size_t pID = dat.p[0]->Index;
       double sp = strainEF[pID];
-      size_t Nc = CalculateContacts(Dom.Interactons, Dom.BInteractons, pID);
+      size_t Nc = CalculateContacts(Dom.Interactons, pID);
+      std::cout <<"Interaction log: Interactons->"<<Dom.Interactons.Size()<<" CInteractons->"<<Dom.CInteractons.Size()<<" BInteractons->"<<Dom.BInteractons.Size()<<std::endl;
       std::cout <<"Upper cylinder:"<< Util::_2 << pID << Util::_10_6 << Dom.Time << Util::_8s << xp(0) << Util::_8s << xp(1) << Util::_8s << xp(2) << Util::_8s << vp(0) << Util::_8s << vp(1) << Util::_8s << vp(2) << Util::_8s << Fp(0) << Util::_8s << Fp(1) << Util::_8s << Fp(2) << Util::_8s << sp << Util::_2 << Nc << std::endl;
-      xp = dat.p[1]->x; vp = dat.p[1]->v; Fp = dat.p[1]->F; pID = dat.p[1]->Index; sp = strainEF[pID]; Nc = CalculateContacts(Dom.Interactons, Dom.BInteractons, pID);
+      xp = dat.p[1]->x; vp = dat.p[1]->v; Fp = dat.p[1]->F; pID = dat.p[1]->Index; sp = strainEF[pID]; Nc = CalculateContacts(Dom.Interactons, pID);
       std::cout <<"Upper plane:"<< Util::_2 << pID << Util::_10_6 << Dom.Time << Util::_8s << xp(0) << Util::_8s << xp(1) << Util::_8s << xp(2) << Util::_8s << vp(0) << Util::_8s << vp(1) << Util::_8s << vp(2) << Util::_8s << Fp(0) << Util::_8s << Fp(1) << Util::_8s << Fp(2) << Util::_8s << sp << Util::_2 << Nc << std::endl;
       //Lower cylinders and plane
-      xp = dat.ps[0]->x; vp = dat.ps[0]->v; Fp = dat.ps[0]->F; pID = dat.ps[0]->Index; sp = strainEF[pID]; Nc = CalculateContacts(Dom.Interactons, Dom.BInteractons, pID);
+      xp = dat.ps[0]->x; vp = dat.ps[0]->v; Fp = dat.ps[0]->F; pID = dat.ps[0]->Index; sp = strainEF[pID]; Nc = CalculateContacts(Dom.Interactons, pID);
       std::cout <<"Lower cylinder a:"<< Util::_2 << pID << Util::_10_6 << Dom.Time << Util::_8s << xp(0) << Util::_8s << xp(1) << Util::_8s << xp(2) << Util::_8s << vp(0) << Util::_8s << vp(1) << Util::_8s << vp(2) << Util::_8s << Fp(0) << Util::_8s << Fp(1) << Util::_8s << Fp(2) << Util::_8s << sp << Util::_2 << Nc << std::endl;
-      xp = dat.ps[1]->x; vp = dat.ps[1]->v; Fp = dat.ps[1]->F; pID = dat.ps[1]->Index; sp = strainEF[pID]; Nc = CalculateContacts(Dom.Interactons, Dom.BInteractons, pID);
+      xp = dat.ps[1]->x; vp = dat.ps[1]->v; Fp = dat.ps[1]->F; pID = dat.ps[1]->Index; sp = strainEF[pID]; Nc = CalculateContacts(Dom.Interactons, pID);
       std::cout <<"Lower cylinder b:"<< Util::_2 << pID << Util::_10_6 << Dom.Time << Util::_8s << xp(0) << Util::_8s << xp(1) << Util::_8s << xp(2) << Util::_8s << vp(0) << Util::_8s << vp(1) << Util::_8s << vp(2) << Util::_8s << Fp(0) << Util::_8s << Fp(1) << Util::_8s << Fp(2) << Util::_8s << sp << Util::_2 << Nc << std::endl;
-      xp = dat.ps[2]->x; vp = dat.ps[2]->v; Fp = dat.ps[2]->F; pID = dat.ps[2]->Index; sp = strainEF[pID]; Nc = CalculateContacts(Dom.Interactons, Dom.BInteractons, pID);
+      xp = dat.ps[2]->x; vp = dat.ps[2]->v; Fp = dat.ps[2]->F; pID = dat.ps[2]->Index; sp = strainEF[pID]; Nc = CalculateContacts(Dom.Interactons, pID);
       std::cout <<"Lower plane:"<< Util::_2 << pID << Util::_10_6 << Dom.Time << Util::_8s << xp(0) << Util::_8s << xp(1) << Util::_8s << xp(2) << Util::_8s << vp(0) << Util::_8s << vp(1) << Util::_8s << vp(2) << Util::_8s << Fp(0) << Util::_8s << Fp(1) << Util::_8s << Fp(2) << Util::_8s << sp << Util::_2 << Nc << std::endl;
       // Particle to track
-      xp = dat.pt[0]->x; vp = dat.pt[0]->v; Fp = dat.pt[0]->F; pID = dat.pt[0]->Index; sp = strainEF[pID]; Nc = CalculateContacts(Dom.Interactons, Dom.BInteractons, pID);
+      xp = dat.pt[0]->x; vp = dat.pt[0]->v; Fp = dat.pt[0]->F; pID = dat.pt[0]->Index; sp = strainEF[pID]; Nc = CalculateContacts(Dom.Interactons, pID);
       Vec3_t BFp = CalculateForce(Dom.BInteractons, pID);
       Vec3_t CFp = CalculateForce(Dom.CInteractons, pID);
       std::cout <<"Upper particle:"<< Util::_2 << pID << Util::_10_6 << Dom.Time << Util::_8s << xp(0) << Util::_8s << xp(1) << Util::_8s << xp(2) << Util::_8s << vp(0) << Util::_8s << vp(1) << Util::_8s << vp(2) << Util::_8s << Fp(0) << Util::_8s << Fp(1) << Util::_8s << Fp(2) << Util::_8s << BFp(0) << Util::_8s << BFp(1) << Util::_8s << BFp(2) << Util::_8s << CFp(0) << Util::_8s << CFp(1) << Util::_8s << CFp(2) << Util::_8s << sp << Util::_2 << Nc << std::endl;

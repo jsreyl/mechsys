@@ -337,6 +337,7 @@ inline bool CInteracton::_update_disp_calc_force (FeatureA_T & A, FeatureB_T & B
         Distance ((*A[i]), (*B[j]), xi, xf);
         double dist  = norm(xf-xi);
         double delta = P1->Props.R + P2->Props.R - dist;
+        //if (delta>1e-3)
         if (delta>0)
         {
 #ifdef USE_CHECK_OVERLAP
@@ -377,7 +378,8 @@ inline bool CInteracton::_update_disp_calc_force (FeatureA_T & A, FeatureB_T & B
             // Vec3_t n = (xf-xi)/dist;
             n = (xf-xi)/dist; ///XXX: n is now declared on class initialization
             Vec3_t x = xi+n*((P1->Props.R*P1->Props.R-P2->Props.R*P2->Props.R+dist*dist)/(2*dist));
-            // Xc += x;
+	    //std::cout<<"CInteracton between particles: "<<P1->Index<<" and "<<P2->Index<<" has initial and final vectors "<<xi<<" and "<<xf<<std::endl;
+            //Xc += x; // XXX: Xc us initialized at zero and each successive calculation increases it
             Xc = x;
             Vec3_t t1,t2,x1,x2;
             Rotation(P1->w,P1->Q,t1);
