@@ -74,26 +74,39 @@ inline void Distance (Edge const & E0, Edge const & E1, Vec3_t & Xi, Vec3_t & Xf
         double l2 = norm(xf2-xi2);
         double l3 = norm(xf3-xi3);
         double l4 = norm(xf4-xi4);
-        if ((l1<=l2) && (l1<=l3) && (l1<=l4))
-        {   
-            Xi = xi1;
-            Xf = xf1;
-        }
-        if ((l2<=l1) && (l2<=l3) && (l2<=l4)) 
-        {   
-            Xi = xi2;
-            Xf = xf2;
-        }
-        if ((l3<=l1) && (l3<=l2) && (l3<=l4)) 
-        {   
-            Xi = xi3;
-            Xf = xf3;
-        }
-        if ((l4<=l1) && (l4<=l2) && (l4<=l3)) 
-        {   
-            Xi = xi4;
-            Xf = xf4;
-        }
+
+	//if ((l1==l2) && (l1 == l3) && (l1 == l4))
+	double tol=std::min(norm(E0.dL),norm(E1.dL))/100.;
+	if (fabs(l1-l2)<tol && fabs(l1-l3)<tol && fabs(l1-l3)<tol)
+	{
+		Xi = 0.5*((*E0.X0)+(*E0.X1));
+		Xf = 0.5*((*E1.X0)+(*E1.X1));
+	}
+	else
+	{
+
+	        if ((l1<=l2) && (l1<=l3) && (l1<=l4))
+	        {   
+	            Xi = xi1;
+	            Xf = xf1;
+	        }
+	        if ((l2<=l1) && (l2<=l3) && (l2<=l4)) 
+	        {   
+	            Xi = xi2;
+	            Xf = xf2;
+	        }
+	        if ((l3<=l1) && (l3<=l2) && (l3<=l4)) 
+	        {   
+	            Xi = xi3;
+	            Xf = xf3;
+	        }
+	        if ((l4<=l1) && (l4<=l2) && (l4<=l3)) 
+	        {   
+	            Xi = xi4;
+	            Xf = xf4;
+	        
+		}
+	}
     }
 }
 

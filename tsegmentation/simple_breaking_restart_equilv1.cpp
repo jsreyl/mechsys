@@ -119,16 +119,17 @@ void Report (DEM::Domain & Dom, void * UD)
   std::cout<<"Position for top plane: "<<dat.p[1]->x<<std::endl;
   // Use flexion as the test
   //Calculate the strain energy field for all the particles in the domain
-  Array<Mat3_t> stresses = StressTensor(Dom.Interactons, Dom.BInteractons, Dom.Particles.Size());
-  std::cout<<"Stresses calculated for all particles! \n";
+  //Array<Mat3_t> stresses = StressTensor(Dom.Interactons, Dom.BInteractons, Dom.Particles.Size());
+  //std::cout<<"Stresses calculated for all particles! \n";
   Array<double> strainEF(Dom.Particles.Size());
   double max_strainEF = 0.;
   // Array<double> max_strains(Dom.Particles.Size()/10);
-  #pragma omp parallel for shared(strainEF, stresses) reduction(max:max_strainEF)
+  #pragma omp parallel for shared(strainEF) reduction(max:max_strainEF)
   for(size_t p=0; p<Dom.Particles.Size();p++){ //Calculate strain energy field for each particle
-    if (stresses[p](0,0)>10000. or stresses[p](0,0)<-10000.){
+    Mat3_t stress = Dom.Particles[p]->S;
+    if (stress(0,0)>10000. or stress(0,0)<-10000.){
       std::cout<<"WARNING: Encountered large stress tensor components, printing interacrons.\n";
-      std::cout<<"Particle "<<p<<" with stress tensor: \n "<<stresses[p]<<"\n";
+      std::cout<<"Particle "<<p<<" with stress tensor: \n "<<stress<<"\n";
       std::cout<<"Particle properties: \n";
       std::cout<<"Tag: "<<Dom.Particles[p]->Tag;
       std::cout<<"Kn: "<<Dom.Particles[p]->Props.Kn;
@@ -143,7 +144,7 @@ void Report (DEM::Domain & Dom, void * UD)
       std::cout<<"Bm: "<<Dom.Particles[p]->Props.Bm;
       std::cout<<"eps: "<<Dom.Particles[p]->Props.eps;
     }
-    strainEF[p] = StrainEnergyField(stresses[p], /*Poisson's ratio*/0.1);
+    strainEF[p] = StrainEnergyField(stress, /*Poisson's ratio*/0.2); //XXX : Poisson's ratio
     if(strainEF[p] > max_strainEF) max_strainEF = strainEF[p];
   }
   std::cout<<"Strain energy field calculated! \n";
@@ -153,6 +154,21 @@ void Report (DEM::Domain & Dom, void * UD)
   Dom.WriteXDMF_User(strainEF,fn.CStr());
   if (Dom.idx_out==0)
     {
+      std::cout<<"Properties of the top particle:\n";
+      std::cout<<"Particle properties: \n";
+      std::cout<<"\tIndex: "<<dat.pt[0]->Index<<"\n";
+      std::cout<<"\tTag: "<<dat.pt[0]->Tag<<"\n";
+      std::cout<<"\tKn: "<<dat.pt[0]->Props.Kn<<"\n";
+      std::cout<<"\tKt: "<<dat.pt[0]->Props.Kt<<"\n";
+      std::cout<<"\tGn: "<<dat.pt[0]->Props.Gn<<"\n";
+      std::cout<<"\tGt: "<<dat.pt[0]->Props.Gt<<"\n";
+      std::cout<<"\tGv: "<<dat.pt[0]->Props.Gv<<"\n";
+      std::cout<<"\tGm: "<<dat.pt[0]->Props.Gm<<"\n";
+      std::cout<<"\tMu: "<<dat.pt[0]->Props.Mu<<"\n";
+      std::cout<<"\tBn: "<<dat.pt[0]->Props.Bn<<"\n";
+      std::cout<<"\tBt: "<<dat.pt[0]->Props.Bt<<"\n";
+      std::cout<<"\tBm: "<<dat.pt[0]->Props.Bm<<"\n";
+      std::cout<<"\teps: "<<dat.pt[0]->Props.eps<<"\n";
       String fs;
       fs.Printf("%s_walls.res",Dom.FileKey.CStr());
       dat.oss_ss.open(fs.CStr());
@@ -164,7 +180,15 @@ void Report (DEM::Domain & Dom, void * UD)
       std::cout <<"Lower cylinder a:"<< Util::_2 << "ID" << Util::_10_6 << "Time" << Util::_8s << "x" << Util::_8s << "y" << Util::_8s << "z" << Util::_8s << "vx" << Util::_8s << "vy" << Util::_8s << "vz" << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << "strainEF"<< Util::_2 << "Nc" << std::endl;
       std::cout <<"Lower cylinder b:"<< Util::_2 << "ID" << Util::_10_6 << "Time" << Util::_8s << "x" << Util::_8s << "y" << Util::_8s << "z" << Util::_8s << "vx" << Util::_8s << "vy" << Util::_8s << "vz" << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << Util::_8s << "strainEF"<< Util::_2 << "Nc" << std::endl;
       std::cout <<"Lower plane:"<< Util::_2 << "ID" << Util::_10_6 << "Time" << Util::_8s << "x" << Util::_8s << "y" << Util::_8s << "z" << Util::_8s << "vx" << Util::_8s << "vy" << Util::_8s << "vz" << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << "strainEF" << Util::_2 << "Nc" << std::endl;
-      std::cout <<"Upper particle:"<< Util::_2 << "ID" << Util::_10_6 << "Time" << Util::_8s << "x" << Util::_8s << "y" << Util::_8s << "z" << Util::_8s << Util::_8s << "vx" << Util::_8s << "vy" << Util::_8s << "vz" << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << "BFx" << Util::_8s << "BFy" << Util::_8s << "BFz" << Util::_8s << "CFx" << Util::_8s << "CFy" << Util::_8s << "CFz" << Util::_8s << "strainEF" << Util::_2 << "Nc" << std::endl;
+      //std::cout <<"Upper particle:"<< Util::_2 << "ID" << Util::_10_6 << "Time" << Util::_8s << "x" << Util::_8s << "y" << Util::_8s << "z" << Util::_8s << Util::_8s << "vx" << Util::_8s << "vy" << Util::_8s << "vz" << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << Util::_8s << "BFx" << Util::_8s << "BFy" << Util::_8s << "BFz" << Util::_8s << "CFx" << Util::_8s << "CFy" << Util::_8s << "CFz" << Util::_8s << "strainEF" << Util::_2 << "Nc" << std::endl;
+      std::cout <<"Upper particle:"<< Util::_2 << "ID" << Util::_10_6 << "Time" << Util::_8s << "x" << Util::_8s << "y" << Util::_8s << "z" << \
+        Util::_8s << Util::_8s << "vx" << Util::_8s << "vy" << Util::_8s << "vz" << Util::_8s << "Fx" << Util::_8s << "Fy" << Util::_8s << "Fz" << \
+        Util::_8s << "BFx" << Util::_8s << "BFy" << Util::_8s << "BFz" << Util::_8s << "CFx" << Util::_8s << "CFy" << Util::_8s << "CFz" << Util::_8s << \
+        "strainEF" << Util::_2 << "Nc" << Util::_2 << "NI" << Util::_2 << "NBI" << Util::_2 << "NCI" << \
+        Util::_8s << "Sxx" << Util::_8s << "Sxy" << Util::_8s << "Sxz" << \
+        Util::_8s << "Syx" << Util::_8s << "Syy" << Util::_8s << "Syz" << \
+        Util::_8s << "Szx" << Util::_8s << "Szy" << Util::_8s << "Szz" << \
+        std::endl;
     }
   if (!Dom.Finished)
     {
@@ -196,9 +220,20 @@ void Report (DEM::Domain & Dom, void * UD)
       std::cout <<"Lower plane:"<< Util::_2 << pID << Util::_10_6 << Dom.Time << Util::_8s << xp(0) << Util::_8s << xp(1) << Util::_8s << xp(2) << Util::_8s << vp(0) << Util::_8s << vp(1) << Util::_8s << vp(2) << Util::_8s << Fp(0) << Util::_8s << Fp(1) << Util::_8s << Fp(2) << Util::_8s << sp << Util::_2 << Nc << std::endl;
       // Particle to track
       xp = dat.pt[0]->x; vp = dat.pt[0]->v; Fp = dat.pt[0]->F; pID = dat.pt[0]->Index; sp = strainEF[pID]; Nc = CalculateContacts(Dom.Interactons, pID);
+      Mat3_t s0 = dat.p[0]->S;
       Vec3_t BFp = CalculateForce(Dom.BInteractons, pID);
       Vec3_t CFp = CalculateForce(Dom.CInteractons, pID);
-      std::cout <<"Upper particle:"<< Util::_2 << pID << Util::_10_6 << Dom.Time << Util::_8s << xp(0) << Util::_8s << xp(1) << Util::_8s << xp(2) << Util::_8s << vp(0) << Util::_8s << vp(1) << Util::_8s << vp(2) << Util::_8s << Fp(0) << Util::_8s << Fp(1) << Util::_8s << Fp(2) << Util::_8s << BFp(0) << Util::_8s << BFp(1) << Util::_8s << BFp(2) << Util::_8s << CFp(0) << Util::_8s << CFp(1) << Util::_8s << CFp(2) << Util::_8s << sp << Util::_2 << Nc << std::endl;
+      //std::cout <<"Upper particle:"<< Util::_2 << pID << Util::_10_6 << Dom.Time << Util::_8s << xp(0) << Util::_8s << xp(1) << Util::_8s << xp(2) << Util::_8s << vp(0) << Util::_8s << vp(1) << Util::_8s << vp(2) << Util::_8s << Fp(0) << Util::_8s << Fp(1) << Util::_8s << Fp(2) << Util::_8s << BFp(0) << Util::_8s << BFp(1) << Util::_8s << BFp(2) << Util::_8s << CFp(0) << Util::_8s << CFp(1) << Util::_8s << CFp(2) << Util::_8s << sp << Util::_2 << Nc << std::endl;
+      std::cout << "Upper particle:"<<Util::_2 << pID << Util::_10_6 << Dom.Time << Util::_8s << xp(0) << Util::_8s << xp(1) << Util::_8s << xp(2) << \
+        Util::_8s << vp(0) << Util::_8s << vp(1) << Util::_8s << vp(2) << \
+        Util::_8s << Fp(0) << Util::_8s << Fp(1) << Util::_8s << Fp(2) << \
+        Util::_8s << BFp(0) << Util::_8s << BFp(1) << Util::_8s << BFp(2) << \
+        Util::_8s << CFp(0) << Util::_8s << CFp(1) << Util::_8s << CFp(2) << \
+        Util::_8s << sp << Util::_2 << Nc << Util::_2 << Dom.Interactons.Size() <<Util::_2 << Dom.BInteractons.Size() <<Util::_2 << Dom.CInteractons.Size() <<\
+        Util::_8s << s0(0,0) << Util::_8s << s0(0,1) << Util::_8s << s0(0,2) << \
+        Util::_8s << s0(1,0) << Util::_8s << s0(1,1) << Util::_8s << s0(1,2) << \
+        Util::_8s << s0(2,0) << Util::_8s << s0(2,1) << Util::_8s << s0(2,2) << \
+        std::endl;
     }
   else dat.oss_ss.close();
   if (Dom.Time > dat.Tcomp){ // After the compression start looking into how to break the particles
@@ -238,7 +273,7 @@ void Report (DEM::Domain & Dom, void * UD)
       ofbreak.open(_fs.CStr());
       // Re calculate stresses since the matrices are broken in diagonalization procedure
       // stresses = StressTensor(Dom.Interactons, Dom.Particles.Size());
-      stresses = StressTensor(Dom.Interactons, Dom.BInteractons, Dom.Particles.Size());
+      //stresses = StressTensor(Dom.Interactons, Dom.BInteractons, Dom.Particles.Size());
       for(size_t pB=0; pB<particlesToBreakID.Size(); pB++){
         size_t pID = particlesToBreakID[pB];
         std::cout<<"Breaking particle with index "<<pID<<"\n";
@@ -246,7 +281,7 @@ void Report (DEM::Domain & Dom, void * UD)
         // Build plane using the principal stress component and the particle geometric center
         // Calculate the first component of the stress tensor
         Vec3_t eigvalR = Vec3_t(0.,0.,0.), _ = Vec3_t(0.,0.,0.), stress_v0 = Vec3_t(0.,0.,0.), stress_v1 = Vec3_t(0.,0.,0.), stress_v2 = Vec3_t(0.,0.,0.);
-        Mat3_t _stress = stresses[pID];//Create a new matrix with the stress tensor since EigNonsymm destroys the matrices it uses
+        Mat3_t _stress = Dom.Particles[pID]->S;//Create a new matrix with the stress tensor since EigNonsymm destroys the matrices it uses
         EigNonsymm(_stress, eigvalR, _, stress_v0, stress_v1, stress_v2, _, _, _);
         Array<Vec3_t> stress_vs(3);
         stress_vs[0] = stress_v0; stress_vs[1] = stress_v1; stress_vs[2] = stress_v2;

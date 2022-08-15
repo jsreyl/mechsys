@@ -60,6 +60,8 @@ public:
     Vec3_t         F2;        ///< Provisional force  for particle 2
     Vec3_t         T1;        ///< Provisional torque for particle 1
     Vec3_t         T2;        ///< Provisional torque for particle 2
+    Mat3_t         S1;        ///< Provisional stress tensor for particle 1
+    Mat3_t         S2;        ///< Provisional stress tensor for particle 2
     Vec3_t         Xc;        ///< Provisional net position for force application
     Vec3_t         n;         ///< Provisional net normal vector to surface where the force is applied
 #ifdef USE_THREAD
@@ -262,14 +264,24 @@ inline bool CInteracton::CalcForce (double dt)
     F2     = OrthoSys::O;
     T1     = OrthoSys::O;
     T2     = OrthoSys::O;
+    set_to_zero(S1);
+    set_to_zero(S2);
     n      = OrthoSys::O;
     if (norm(P1->x - P2->x) > P1->Dmax + P2->Dmax) return false;
+    //std::cout<<"CInteracton between particle "<< P1->Index<<" and "<<P2->Index<<"\n";
+    //std::cout<<"Calculating Edge to Edge contacts\n";// for elements"<<Lee<<"\n";
     if (_update_disp_calc_force (P1->Edges     ,P2->Edges     ,Fdee,Lee,dt)) overlap = true;
+    //std::cout<<"Calculating Verts to Faces contacts\n";//  for elements"<<Lvf<<"\n";
     if (_update_disp_calc_force (P1->Verts     ,P2->Faces     ,Fdvf,Lvf,dt)) overlap = true;
-    if (_update_disp_calc_force (P1->Faces     ,P2->Verts     ,Fdfv,Lfv,dt)) overlap = true;
+//   std::cout<<"Calculating Faces to Verts contacts\n";//  for elements"<<Lfv<<"\n";
+   if (_update_disp_calc_force (P1->Faces     ,P2->Verts     ,Fdfv,Lfv,dt)) overlap = true;
+//    //std::cout<<"Calculating Verts to Tori contacts\n";//  for elements"<<Lvt<<"\n";
     if (_update_disp_calc_force (P1->Verts     ,P2->Tori      ,Fdvt,Lvt,dt)) overlap = true;
+//    //std::cout<<"Calculating Tori to Verts contacts\n";//  for elements"<<Ltv<<"\n";
     if (_update_disp_calc_force (P1->Tori      ,P2->Verts     ,Fdtv,Ltv,dt)) overlap = true;
+//    //std::cout<<"Calculating Verts to Cylinders contacts\n";//  for elements"<<Lvc<<"\n";
     if (_update_disp_calc_force (P1->Verts     ,P2->Cylinders ,Fdvc,Lvc,dt)) overlap = true;
+//    //std::cout<<"Calculating Cylinders to Verts contacts\n";//  for elements"<<Lcv<<"\n";
     if (_update_disp_calc_force (P1->Cylinders ,P2->Verts     ,Fdcv,Lcv,dt)) overlap = true;
 
     //If there is at least a contact, increase the coordination number of the particles
@@ -378,9 +390,10 @@ inline bool CInteracton::_update_disp_calc_force (FeatureA_T & A, FeatureB_T & B
             // Vec3_t n = (xf-xi)/dist;
             n = (xf-xi)/dist; ///XXX: n is now declared on class initialization
             Vec3_t x = xi+n*((P1->Props.R*P1->Props.R-P2->Props.R*P2->Props.R+dist*dist)/(2*dist));
-	    //std::cout<<"CInteracton between particles: "<<P1->Index<<" and "<<P2->Index<<" has initial and final vectors "<<xi<<" and "<<xf<<std::endl;
+	    // std::cout<<"CInteracton between particles: "<<P1->Index<<" and "<<P2->Index<<"for geometric elements "<<i<<" and "<<j<<" has initial and final vectors "<<xi<<" and "<<xf<<" are "<<delta<<"from each other"<<std::endl; // XXX DEBUG comment
             //Xc += x; // XXX: Xc us initialized at zero and each successive calculation increases it
             Xc = x;
+	    //std::cout<<"Point for net force application: "<<Xc<<std::endl;///XXX:DEBUG comment
             Vec3_t t1,t2,x1,x2;
             Rotation(P1->w,P1->Q,t1);
             Rotation(P2->w,P2->Q,t2);
@@ -438,6 +451,18 @@ inline bool CInteracton::_update_disp_calc_force (FeatureA_T & A, FeatureB_T & B
             Rotation  (Tt,q,T);
             //P2->T += T;
             T2 += T;
+	    // XXX : Calculate stress tensor for the particles, Force on particle 1/2 is -F/F
+	    Mat3_t s1, s2; 
+	    //set_to_zero(s1); set_to_zero(s2);
+	    x1 = x1/P1->Props.V; x2 = x2/P2->Props.V; //XXX Divided x1 and x2 by the volume here
+	    s1(0,0) = -x1(0)*F(0); s1(0,1) = -x1(0)*F(1); s1(0,2) = -x1(0)*F(2); 
+	    s1(1,0) = -x1(1)*F(0); s1(1,1) = -x1(1)*F(1); s1(1,2) = -x1(1)*F(2); 
+	    s1(2,0) = -x1(2)*F(0); s1(2,1) = -x1(2)*F(1); s1(2,2) = -x1(2)*F(2); 
+	    s2(0,0) =  x2(0)*F(0); s2(0,1) =  x2(0)*F(1); s2(0,2) =  x2(0)*F(2); 
+	    s2(1,0) =  x2(1)*F(0); s2(1,1) =  x2(1)*F(1); s2(1,2) =  x2(1)*F(2); 
+	    s2(2,0) =  x2(2)*F(0); s2(2,1) =  x2(2)*F(1); s2(2,2) =  x2(2)*F(2); 
+	    S1 = S1+s1;//Add to the global stress of this interacton
+	    S2 = S2+s2;
             //Transfering the branch vector information
             Vec3_t nor = n;
             Vec3_t dif = P2->x - P1->x;
@@ -464,6 +489,8 @@ inline bool CInteracton::_update_disp_calc_force (FeatureA_T & A, FeatureB_T & B
 
             // potential energy
             Epot += 0.5*Kn*delta*delta+0.5*Kt*dot(FMap[p],FMap[p]);
+	    // std::cout<<"CInteracton Force for this element pair: "<<F<<std::endl; //XXX: DEBUG
+	    // std::cout<<"CInteracton total Force accumulated: "<<F1<<std::endl; // XXX:DEBUG
         }
     }
     return false;
@@ -612,6 +639,8 @@ inline bool CInteractonSphere::CalcForce(double dt)
     F2     = OrthoSys::O;
     T1     = OrthoSys::O;
     T2     = OrthoSys::O;
+    set_to_zero(S1);
+    set_to_zero(S2);
     n      = OrthoSys::O;
     //bool overlap;
     //overlap = _update_disp_calc_force (P1->Verts,P2->Verts,Fdvv,Lvv,dt);
@@ -749,6 +778,18 @@ inline bool CInteractonSphere::CalcForce(double dt)
         T2 += T;
 
         Fn        = Fdr;
+	// XXX : Calculate stress tensor for the particles, Force on particle 1/2 is -F/F
+	Mat3_t s1, s2; 
+	//set_to_zero(s1); set_to_zero(s2);
+	x1 = x1/P1->Props.V; x2 = x2/P2->Props.V; //XXX Divided x1 and x2 by the volume here
+	s1(0,0) = -x1(0)*F(0); s1(0,1) = -x1(0)*F(1); s1(0,2) = -x1(0)*F(2); 
+	s1(1,0) = -x1(1)*F(0); s1(1,1) = -x1(1)*F(1); s1(1,2) = -x1(1)*F(2); 
+	s1(2,0) = -x1(2)*F(0); s1(2,1) = -x1(2)*F(1); s1(2,2) = -x1(2)*F(2); 
+	s2(0,0) =  x2(0)*F(0); s2(0,1) =  x2(0)*F(1); s2(0,2) =  x2(0)*F(2); 
+	s2(1,0) =  x2(1)*F(0); s2(1,1) =  x2(1)*F(1); s2(1,2) =  x2(1)*F(2); 
+	s2(2,0) =  x2(2)*F(0); s2(2,1) =  x2(2)*F(1); s2(2,2) =  x2(2)*F(2); 
+	S1 = S1+s1;
+	S2 = S2+s2;
     }
 
     //If there is at least a contact, increase the coordination number of the particles
@@ -885,6 +926,8 @@ inline bool BInteracton::CalcForce(double dt)
     F2 = OrthoSys::O;
     T1 = OrthoSys::O;
     T2 = OrthoSys::O;
+    set_to_zero(S1);
+    set_to_zero(S2);
     if (valid)
     {
         // Calculate the normal vector and centroid of the contact face
@@ -963,6 +1006,18 @@ inline bool BInteracton::CalcForce(double dt)
         Rotation  (Tt,q2,T);
         //P2->T += T;
         T2 += T;
+	// XXX : Calculate stress tensor for the particles, Force on particle 1/2 is -F/F
+	Mat3_t s1, s2; 
+	//set_to_zero(s1); set_to_zero(s2);
+	x1 = x1/P1->Props.V; x2 = x2/P2->Props.V; //XXX Divided x1 and x2 by the volume here
+	s1(0,0) = -x1(0)*FT(0); s1(0,1) = -x1(0)*FT(1); s1(0,2) = -x1(0)*FT(2); 
+	s1(1,0) = -x1(1)*FT(0); s1(1,1) = -x1(1)*FT(1); s1(1,2) = -x1(1)*FT(2); 
+	s1(2,0) = -x1(2)*FT(0); s1(2,1) = -x1(2)*FT(1); s1(2,2) = -x1(2)*FT(2); 
+	s2(0,0) =  x2(0)*FT(0); s2(0,1) =  x2(0)*FT(1); s2(0,2) =  x2(0)*FT(2); 
+	s2(1,0) =  x2(1)*FT(0); s2(1,1) =  x2(1)*FT(1); s2(1,2) =  x2(1)*FT(2); 
+	s2(2,0) =  x2(2)*FT(0); s2(2,1) =  x2(2)*FT(1); s2(2,2) =  x2(2)*FT(2); 
+	S1 = S1+s1;//Add to the global stress of this interacton
+	S2 = S2+s2;
 #ifdef USE_THREAD
         //pthread_mutex_unlock(&lck);
         //pthread_mutex_unlock(&P1->lck);

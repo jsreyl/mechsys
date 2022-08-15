@@ -553,6 +553,8 @@ inline void Domain::Solve (double tf, double dt, double dtOut, ptFun_t ptSetup, 
             // set the force and torque to the fixed values
             Particles[i]->F = Particles[i]->Ff;
             Particles[i]->T = Particles[i]->Tf;
+	    //Set stress tensor to zero
+            set_to_zero(Particles[i]->S);
 
             //Particles[i]->Bdry = false;
         }
@@ -571,13 +573,16 @@ inline void Domain::Solve (double tf, double dt, double dtOut, ptFun_t ptSetup, 
                 sleep(1);
                 throw new Fatal("Maximun overlap detected between particles");
             }
+	    /// Add Stress tensor to particles here
             omp_set_lock  (&Interactons[i]->P1->lck);
             Interactons[i]->P1->F += Interactons[i]->F1;
             Interactons[i]->P1->T += Interactons[i]->T1;
+            Interactons[i]->P1->S = Interactons[i]->P1->S + Interactons[i]->S1;
             omp_unset_lock(&Interactons[i]->P1->lck);
             omp_set_lock  (&Interactons[i]->P2->lck);
             Interactons[i]->P2->F += Interactons[i]->F2;
             Interactons[i]->P2->T += Interactons[i]->T2;
+            Interactons[i]->P2->S = Interactons[i]->P2->S + Interactons[i]->S2;
             omp_unset_lock(&Interactons[i]->P2->lck);
         }
 

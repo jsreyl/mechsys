@@ -15,36 +15,36 @@
 
 template<class Interactons_T>
 Vec3_t CalculateForce(Interactons_T Interactons, size_t pID);
+//Vec3_t CalculateForce(Array<DEM::Interacton*> Interactons, size_t pID);
+//Vec3_t CalculateForce(Array<DEM::BInteracton*> Interactons, size_t pID);
 template<class Interactons_T>
 size_t CalculateContacts(Interactons_T Interactons, size_t pID);
-//size_t CalculateContacts(Array<DEM::Interacton*> Interactons, size_t pID);
-//size_t CalculateContacts(Array<DEM::BInteracton*> Interactons, size_t pID);
-//size_t CalculateContacts(Array<DEM::Interacton*> Interactons, Array<DEM::BInteracton*> BInteractons, size_t pID);
+size_t CalculateContacts(Array<DEM::Interacton*> Interactons, Array<DEM::BInteracton*> BInteractons, size_t pID);
 template<class Interactons_T>
-Array <Mat3_t> StressTensor(Interactons_T Interactons, size_t n_p);//Calculate all Stress Tensors for the domains interactions
-//Array <Mat3_t> StressTensor(Array<DEM::Interacton*> Interactons, size_t n_p);//Calculate all Stress Tensors for the domains interactions
-//Array <Mat3_t> StressTensor(Array<DEM::BInteracton*> Interactons, size_t n_p);//Calculate all Stress Tensors for the domain's cohesive interactions
+Array <Mat3_t> StressTensor(Interactons_T Interactons, size_t n_p);//Calculate all Stress Tensors for the domains interactions or cohesive interactons
+//Array <Mat3_t> StressTensor(Array<DEM::Interacton*> Interactons, size_t n_p);//Calculate all Stress Tensors for the domains interactions or cohesive interactons
+//Array <Mat3_t> StressTensor(Array<DEM::BInteracton*> Interactons, size_t n_p);//Calculate all Stress Tensors for the domains interactions or cohesive interactons
 Array <Mat3_t> StressTensor(Array<DEM::Interacton*> Interactons, Array<DEM::BInteracton*> BInteractons, size_t n_p);//Calculate all Stress Tensors for the domain's cohesive interactions
 double StrainEnergyField(Mat3_t S, double nu, bool verbose = false);//Calculate the strain energy field given a Stress Tensor matrix
 
 template<class Interactons_T>
 inline Vec3_t CalculateForce(Interactons_T Interactons, size_t pID) {
   Vec3_t F = Vec3_t(0., 0., 0.);
-  //double Fx=0.0, Fy=0.0,Fz=0.0;
-//#pragma omp parallel for reduction(+:Fx,Fy,Fz) private(F) shared(Interactons)
+  double Fx=0., Fy=0., Fz = 0.;
+  #pragma omp parallel for reduction(+:Fx, Fy, Fz) shared(Interactons) private(F)
   for(size_t i=0; i<Interactons.Size();i++){
-	  if (Interactons[i]->I1 == pID ) F +=Interactons[i]->F1;
-	  if (Interactons[i]->I2 == pID ) F +=Interactons[i]->F2;
-	  //Fx += F(0); Fy += F(1); Fz += F(2);
+	  if (Interactons[i]->I1 == pID ) F =Interactons[i]->F1;
+	  if (Interactons[i]->I2 == pID ) F =Interactons[i]->F2;
+    Fx += F(0); Fy += F(1); Fz += F(2);
   }
-  //return Vec3_t(Fx, Fy, Fz);
+  F = Vec3_t(Fx, Fy, Fz);
   return F;
 }
 
 template<class Interactons_T>
 inline size_t CalculateContacts(Interactons_T Interactons, size_t pID) {
   size_t Nc = 0;
-#pragma omp parallel for reduction(+:Nc)
+  #pragma omp parallel for reduction(+:Nc) shared(Interactons)
   for(size_t i=0; i<Interactons.Size();i++) if (Interactons[i]->I1 == pID || Interactons[i]->I2 == pID) Nc++;
   return Nc;
 }
@@ -54,13 +54,17 @@ inline size_t CalculateContacts(Array<DEM::BInteracton*> Interactons, size_t pID
   for(size_t i=0; i<Interactons.Size();i++) if (Interactons[i]->I1 == pID || Interactons[i]->I2 == pID) Nc++;
   return Nc;
 }
+*/
 inline size_t CalculateContacts(Array<DEM::Interacton*> Interactons, Array<DEM::BInteracton*> BInteractons, size_t pID) {
   size_t Nc = 0;
+  #pragma omp parallel for reduction(+:Nc) shared(Interactons)
   for(size_t i=0; i<Interactons.Size();i++) if (Interactons[i]->I1 == pID || Interactons[i]->I2 == pID) Nc++;
+  #pragma omp parallel for reduction(+:Nc) shared(BInteractons)
   for(size_t i=0; i<BInteractons.Size();i++) if (BInteractons[i]->I1 == pID || BInteractons[i]->I2 == pID) Nc++;
   return Nc;
 }
-*/
+
+//inline Array<Mat3_t> StressTensor(Array<DEM::Interacton*> Interactons, size_t n_p){
 template<class Interactons_T>
 inline Array<Mat3_t> StressTensor(Interactons_T Interactons, size_t n_p){
   /*
@@ -70,10 +74,11 @@ inline Array<Mat3_t> StressTensor(Interactons_T Interactons, size_t n_p){
      - n_p: number of particles in the domain
    */
   Array<Mat3_t> S(n_p);
-//#pragma omp parallel for shared(S,n_p)
+  #pragma omp parallel for
   for(size_t i=0; i<n_p;i++) set_to_zero(S[i]); //Set everything to zero
   //Now calculate the components
   size_t n_interacton = Interactons.Size();
+  //#pragma omp parallel for reduction(+:S[:n_p])
   for(size_t i=0; i<n_interacton;i++){
     DEM::Interacton * I = Interactons[i];
     Vec3_t r1 = (I->P1->x - I->Xc)/(I->P1->Props.V); //Position between the two particles
@@ -89,17 +94,13 @@ inline Array<Mat3_t> StressTensor(Interactons_T Interactons, size_t n_p){
     S[I->I2](2,0) += r2(2)*I->F2(0); S[I->I2](2,1) += r2(2)*I->F2(1); S[I->I2](2,2) += r2(2)*I->F2(2);
   }
   // Make ridiculous things like 3.2e-311 into zeros so we can use a numeric solver on the stress tensors
-//#pragma omp parallel for shared(S,n_p) collapse(3)
-  for(size_t p=0; p<n_p;p++){
-    for(size_t i=0;i<3;i++){
+  #pragma omp parallel for collapse(3)
+  for(size_t p=0; p<n_p;p++)
+    for(size_t i=0;i<3;i++)
       for(size_t j=0;j<3;j++){
         double s = S[p](i,j);
         S[p](i,j) = (fabs(s)>1e-4) ? s : 0.;
       }
-    }
-    std::cout<<"Stress tensor for particle"<<p<<S[p]<<std::endl;
-  }
-
   return S;
 }
 /*
@@ -109,7 +110,7 @@ inline Array<Mat3_t> StressTensor(Array<DEM::BInteracton*> Interactons, size_t n
   // INPUTS:
   //   - I: Interactons of the domain
   //   - n_p: number of particles in the domain
-  
+  //
   Array<Mat3_t> S(n_p);
   for(size_t i=0; i<n_p;i++) set_to_zero(S[i]); //Set everything to zero
   //Now calculate the components
@@ -137,6 +138,7 @@ inline Array<Mat3_t> StressTensor(Array<DEM::BInteracton*> Interactons, size_t n
   return S;
 }
 */
+
 inline Array<Mat3_t> StressTensor(Array<DEM::Interacton*> Interactons,Array<DEM::BInteracton*> BInteractons, size_t n_p){
   /*
    *Calculates the stress tensor for all particles in the domain
@@ -145,7 +147,7 @@ inline Array<Mat3_t> StressTensor(Array<DEM::Interacton*> Interactons,Array<DEM:
      - n_p: number of particles in the domain
    */
   Array<Mat3_t> S(n_p);
-//#pragma omp parallel for shared(S,n_p)
+  #pragma omp parallel for 
   for(size_t i=0; i<n_p;i++) set_to_zero(S[i]); //Set everything to zero
   //Now calculate the components
   size_t n_interacton = Interactons.Size();
@@ -177,18 +179,13 @@ inline Array<Mat3_t> StressTensor(Array<DEM::Interacton*> Interactons,Array<DEM:
     S[I->I2](2,0) += r2(2)*I->F2(0); S[I->I2](2,1) += r2(2)*I->F2(1); S[I->I2](2,2) += r2(2)*I->F2(2);
   }
   // Make ridiculous things like 3.2e-311 into zeros so we can use a numeric solver on the stress tensors
-//#pragma omp parallel for shared(S,n_p) collapse(3)
-  for(size_t p=0; p<n_p;p++){
-    for(size_t i=0;i<3;i++){
+  #pragma omp parallel for collapse(3)
+  for(size_t p=0; p<n_p;p++)
+    for(size_t i=0;i<3;i++)
       for(size_t j=0;j<3;j++){
         double s = S[p](i,j);
         S[p](i,j) = (fabs(s)>1e-4) ? s : 0.;
       }
-    }
-    std::cout<<"Stress tensor for particle"<<p<<S[p]<<std::endl;
-  }
-
-
   return S;
 }
 
@@ -201,13 +198,6 @@ inline double StrainEnergyField(Mat3_t S, double nu, bool verbose){
    OUTPUTS:
      - strainEF: a scalar representing the Strain Energy Field
    */
-  //Make small numbers zero
-  for(size_t i=0;i<3;i++)
-    for(size_t j=0;j<3;j++){
-      double s = S(i,j);
-      S(i,j) = (fabs(s)>1e-4) ? s : 0.;
-    }
-
   //Get the eigenvalues of the stress tensor
   Vec3_t eigvalR = Vec3_t(0.,0.,0.), eigvalI = Vec3_t(0.,0.,0.);//Since the stress tensor is nonsymmetric in general it's eigenvalues are complex numbers in general
   if (verbose) if(fabs(S(1,0)-S(0,1))<1e-2 && fabs(S(2,0)-S(0,2))<1e-2 && fabs(S(2,1)-S(1,2))<1e-2) std::cout<<"Stress tensor is symmetric!\n"<<S<<std::endl;

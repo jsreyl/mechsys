@@ -23,7 +23,7 @@
 using std::cout;
 using std::endl;
 
-void LocalImposeParticleCohesion(int Tag, DEM::Domain & Dom, double tol1=1.0e-8, double tol2=1.0e-3);
+void LocalImposeParticleCohesion(int Tag, DEM::Domain & Dom, double tol1=1.0e-8, double tol2=1.0e-3, double L0=0.);
 Array<size_t> GetLargest3(Array<double> Fs);
 size_t CalculateIntersection(Vec3_t planeNormal, Vec3_t planePoint, Vec3_t X0, Vec3_t X1, double dist0, double dist1, Vec3_t & intersectionVertex, double tolerance = 1e-5);
 bool FindVectorInList(Vec3_t vertex, Array<Vec3_t> vertList, size_t & position, double tolerance = 1e-5);
@@ -43,7 +43,7 @@ void BisectPolyhedron(DEM::Particle * ogParticle, Vec3_t planeNormal, Vec3_t pla
 /*
 ************************IMPLEMENTATION*******************************
  */
-inline  void LocalImposeParticleCohesion(int Tag, DEM::Domain & Dom, double tol1, double tol2){
+inline  void LocalImposeParticleCohesion(int Tag, DEM::Domain & Dom, double tol1, double tol2, double L0){
   /*
    *This function imposes a cohesive interaction between all particles in the given domain
    *Inputs:
@@ -72,7 +72,7 @@ inline  void LocalImposeParticleCohesion(int Tag, DEM::Domain & Dom, double tol1
           //std::cout<<"Therefore our mean radius is "<<R<<std::endl;
           //std::cout<<"And our Dmaxes are "<<P1->Dmax<<" and "<<P2->Dmax<<std::endl;
           //std::cout<<"And our Positions are "<<P1->x<<" and "<<P2->x<<std::endl;
-          if (DEM::Distance(P1->x,P2->x)<P1->Dmax+P2->Dmax)//If the particles are close together
+          if (DEM::Distance(P1->x,P2->x)<P1->Dmax+P2->Dmax+L0)//If the particles are close together
             {
               double R =0.5*(P1->Props.R+P2->Props.R);
               //std::cout<<"And we're in contact!"<<std::endl;
@@ -97,8 +97,8 @@ inline  void LocalImposeParticleCohesion(int Tag, DEM::Domain & Dom, double tol1
                       // std::cout<<"And Face 2 is close to the centroid of Face 1? "<<(fabs(Distance(c1,*F2)-2*R)<tol2)<<" in fact we're "<<fabs(Distance(c1,*F2)-2*R)<<" apart"<<std::endl;
                       // std::cout<<"And Face 1 is close to the centroid of Face 2? "<<(fabs(Distance(c2,*F1)-2*R)<tol2)<<" in fact we're "<<fabs(Distance(c2,*F1)-2*R)<<" apart"<<std::endl;
                       if ((fabs(dot(n1,n2)+1.0)<tol1)
-                          &&(fabs(Distance(c1,*F2)-2*R)<tol2)
-                          &&(fabs(Distance(c2,*F1)-2*R)<tol2))//check for distance and angle treshholds
+                          &&(fabs(Distance(c1,*F2)-2*R)<tol2+L0)
+                          &&(fabs(Distance(c2,*F1)-2*R)<tol2+L0))//check for distance and angle treshholds
                         {
                           // std::cout<<"Adding cohesion between P1:"<<P1->Index<<" and P2:"<<P2->Index<<std::endl;
                           Dom.BInteractons.Push(new DEM::BInteracton(P1,P2,k,l));

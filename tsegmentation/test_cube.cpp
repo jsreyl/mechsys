@@ -45,6 +45,7 @@ void Report(DEM::Domain & Dom){
 }
 
 void Report2(DEM::Domain & Dom, void * UD){
+    std::cout<<"REPORT! T="<<Dom.Time<<"\n";
     UserData & dat = (*static_cast<UserData *>(UD));
     if (Dom.idx_out == 0.){
         //String fs;
@@ -54,11 +55,15 @@ void Report2(DEM::Domain & Dom, void * UD){
     if (!Dom.Finished){
         //Print data
         Vec3_t xp, vp, Fp, BFp, CFp; int Nc, pID;
+        Mat3_t Sp; //Stress tensor
         DEM::Particle * p = Dom.Particles[0];
         xp = p->x; vp = p->v; Fp = p->F; pID = p->Index; Nc = CalculateContacts(Dom.Interactons, pID);//sp = strainEF[pID]; 
         BFp = CalculateForce(Dom.BInteractons, pID);
         CFp = CalculateForce(Dom.CInteractons, pID);
-        //std::cout <<"Interaction log: Interactons->"<<Dom.Interactons.Size()<<" CInteractons->"<<Dom.CInteractons.Size()<<" BInteractons->"<<Dom.BInteractons.Size()<<std::endl;
+        Sp = p->S;
+        std::cout <<"Interaction log: Interactons->"<<Dom.Interactons.Size()<<" CInteractons->"<<Dom.CInteractons.Size()<<" BInteractons->"<<Dom.BInteractons.Size()<<std::endl;
+        //PrintMatrix(Sp);
+        std::cout<<"Stress Tensor for particle 0:\n"<<Sp<<std::endl;
         dat.ofcubes << Util::_2 << pID << Util::_10_6 << Dom.Time << Util::_8s << xp(0) << Util::_8s << xp(1) << Util::_8s << xp(2) << \
         Util::_8s << vp(0) << Util::_8s << vp(1) << Util::_8s << vp(2) << \
         Util::_8s << Fp(0) << Util::_8s << Fp(1) << Util::_8s << Fp(2) << \
@@ -116,7 +121,14 @@ int main(int argc, char **argv) try
     //Add beam force between particles
     LocalImposeParticleCohesion(pTag, dom, 1e-8, 1e-3, dx2);
     std::cout <<"Interaction log: Interactons->"<<dom.Interactons.Size()<<" CInteractons->"<<dom.CInteractons.Size()<<" BInteractons->"<<dom.BInteractons.Size()<<std::endl;
-    
+    for(size_t i=0; i<dom.Particles.Size(); i++){
+        std::cout<<"Particle "<<i<<" geometry\n";
+        DEM::Particle * p = dom.Particles[i];
+        for(size_t v=0; v<p->Verts.Size();v++) std::cout<<"\tVertex "<<v<<":"<<*(p->Verts[v])<<"\n";
+        for(size_t e=0; e<p->EdgeCon.Size();e++) std::cout<<"\tEdgeCon "<<e<<":"<<p->EdgeCon[e]<<"\n";
+        for(size_t f=0; f<p->FaceCon.Size();f++) std::cout<<"\tFaceCon "<<f<<":"<<p->FaceCon[f]<<"\n";
+        
+    }
     dom.WriteXDMF("test_cubes_initial");
     dom.Dilate= true;
     dom.Solve(/*Tf*/Tf, /*dt*/dt, /*dtOut*/dt*10., /*Setup*/ NULL, /*Report*/ &Report2, "test_cubes" , /*Render_video*/Render); //2 for XDMF

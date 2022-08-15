@@ -20,6 +20,7 @@ struct UserData
 
 void Setup(DEM::Domain &Dom){
     std::cout<<"TIME:"<<Dom.Time<<std::endl;
+    std::cout <<"Interaction log: Interactons->"<<Dom.Interactons.Size()<<" CInteractons->"<<Dom.CInteractons.Size()<<" BInteractons->"<<Dom.BInteractons.Size()<<std::endl;
 }
 
 void Report(DEM::Domain & Dom){
@@ -45,21 +46,25 @@ void Report2(DEM::Domain & Dom, void * UD){
     }
     if (!Dom.Finished){
         //Print data
-        Vec3_t xp, vp, Fp, BFp, CFp; int Nc, pID;
-        DEM::Particle * p = Dom.Particles[0];
+        Vec3_t xp, vp, Fp, BFp, CFp; Mat3_t Sp; int Nc, pID;
+        DEM::Particle * p = Dom.Particles[1];
         xp = p->x; vp = p->v; Fp = p->F; pID = p->Index; Nc = CalculateContacts(Dom.Interactons, pID);//sp = strainEF[pID]; 
+        Mat3_t s0 = p->S;
+        //std::cout <<"Interaction log: Interactons->"<<Dom.Interactons.Size()<<" CInteractons->"<<Dom.CInteractons.Size()<<" BInteractons->"<<Dom.BInteractons.Size()<<std::endl;
+        std::cout<<"Stress tensor for particle 0 "<<s0<<"\n";
         BFp = CalculateForce(Dom.BInteractons, pID);
         CFp = CalculateForce(Dom.CInteractons, pID);
-        Array<Mat3_t> stress = StressTensor(Dom.Interactons, Dom.Particles.Size());
-        Mat3_t s0 = stress[0];
+        //Array<Mat3_t> stress = StressTensor(Dom.Interactons, Dom.Particles.Size());
+        //Mat3_t s0 = stress[0];
         Array<double> strainEF(Dom.Particles.Size());
         //#pragma omp parallel for
-        for(size_t i=0; i<Dom.Particles.Size();i++) strainEF[i] = StrainEnergyField(stress[i], 0.2);
+        for(size_t i=0; i<Dom.Particles.Size();i++) strainEF[i] = StrainEnergyField(Dom.Particles[i]->S, 0.2);
         if(Dom.Time >= dat.tprint) {
-            std::cout<<Dom.Time<<std::endl;
-            std::cout<<s0<<std::endl;
+            //std::cout<<"Printing XDMF for strain energy field? "<<dat.Render<<" at time"<<Dom.Time<<"\n";
             if(dat.Render){
-                Dom.WriteXDMF_User(strainEF, "three_cubes");
+                String fn;
+                fn.Printf    ("%s_%04d", "three_cubes", Dom.idx_out);
+                Dom.WriteXDMF_User(strainEF,fn.CStr());
             }
             dat.tprint += 0.1;
         }
@@ -98,9 +103,9 @@ int main(int argc, char **argv) try
     //--- Domain definition ---
     double verlet = 0.05;
     UserData dat;
+    DEM::Domain dom(&dat);
     dat.tprint = 0.;
     dat.Render = Render;
-    DEM::Domain dom(&dat);
     //DEM::Domain dom; //(&dat);
     //String _fs;
     dom.Alpha = verlet;
@@ -127,7 +132,7 @@ int main(int argc, char **argv) try
     dom.Particles[1]->Ff = 0., -Fy, 0.; //Compression
     dom.Particles[2]->Ff = 0., Fy, 0.; //Compression
     //Add beam force between particles
-    //LocalImposeParticleCohesion(pTag, dom, 1e-8, 1e-3, dx2);
+    LocalImposeParticleCohesion(pTag, dom, 1e-8, 1e-3, dx2);
     std::cout <<"Interaction log: Interactons->"<<dom.Interactons.Size()<<" CInteractons->"<<dom.CInteractons.Size()<<" BInteractons->"<<dom.BInteractons.Size()<<std::endl;
     
     dom.WriteXDMF("three_cubes_initial");

@@ -133,6 +133,7 @@ public:
     Vec3_t          Ff;              ///< Fixed Force over the particle
     Vec3_t          T;               ///< Torque over the particle
     Vec3_t          Tf;              ///< Fixed Torque over the particle
+    Mat3_t          S;               ///< Stress tensor over the particle
     Vec3_t          I;               ///< Vector containing the principal components of the inertia tensor
     Quaternion_t    Q;               ///< The quaternion representing the rotation
     double          Erot;            ///< Rotational energy of the particle
@@ -194,6 +195,7 @@ std::ostream & operator<< (std::ostream & os, Particle const & P)
     os << "Ff            = "  << PrintVector(P.Ff);
     os << "T             = "  << PrintVector(P.T );
     os << "Tf            = "  << PrintVector(P.Tf);
+    os << "S             = "  << PrintMatrix(P.S);
     os << "I             = "  << PrintVector(P.I );
     os << "Q             = "  << P.Q << std::endl;
     os << "Erot          = "  << P.Erot << std::endl;
@@ -236,8 +238,8 @@ inline void Particle::init_default_values(int tag, double r, double rho)
     v          = 0.0,0.0,0.0;
     w          = 0.0,0.0,0.0;
 
-    Props.Kn   = 1.0e3;//1.0e4;
-    Props.Kt   = 5.0e2;//5.0e3;
+    Props.Kn   = 5.0e1;//1.0e3;//1.0e4;
+    Props.Kt   = 2.5e1;//5.0e2;//5.0e3;
     Props.Bn   = 1.0e3;//1.0e4;
     Props.Bt   = 5.0e2;//5.0e3;
     Props.Bm   = 5.0e2;//5.0e3;
@@ -264,6 +266,7 @@ inline void Particle::init_default_values(int tag, double r, double rho)
     T      = 0.0,0.0,0.0;
     Ff     = 0.0,0.0,0.0;
     Tf     = 0.0,0.0,0.0;
+    set_to_zero(S);
 }
 
 inline void Particle::poly_calc_props(Array<Vec3_t> & V)
