@@ -50,6 +50,7 @@ inline  void LocalImposeParticleCohesion(int Tag, DEM::Domain & Dom, double tol1
    - Tag, of the particles
    - Dom, domain of the particles
    - tolerances for angle and distance separation between faces
+   - L0, additional leverage distance for particle interaction
    *Outputs: None
    */
   Util::Stopwatch stopwatch; //Count how much time is spent generating the cohesions

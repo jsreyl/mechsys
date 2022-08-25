@@ -841,7 +841,7 @@ inline void EigNonsymm(Mat3_t & M, Vec3_t & R, Vec3_t & I){
     Eigenvalues are given in two vectors R and I containing the real and imaginary parts respectively.
     Eigenvectors are given by V0r+V0i where V0r is the real part and V0i the imaginary part
  **/
-inline void EigNonsymm(Mat3_t & M, Vec3_t & R, Vec3_t & I, Vec3_t & V0r, Vec3_t & V1r, Vec3_t & V2r, Vec3_t & V0i, Vec3_t & V1i, Vec3_t & V2i){
+inline void EigNonsymm(Mat3_t & M, Vec3_t & R, Vec3_t & I, Vec3_t & V0r, Vec3_t & V1r, Vec3_t & V2r, Vec3_t & V0i, Vec3_t & V1i, Vec3_t & V2i, bool SortAsc=false, bool SortDesc=false){
   //calculate for a non-symmetrical system using GSL (GNU scientific library)
   // To do this the Schur decomposition is used
   // M = ZSZ^T
@@ -852,6 +852,8 @@ inline void EigNonsymm(Mat3_t & M, Vec3_t & R, Vec3_t & I, Vec3_t & V0r, Vec3_t 
   gsl_eigen_nonsymmv_workspace * w = gsl_eigen_nonsymmv_alloc (3);//Allocate workspace for eigenvalues of nonsymmetric system
   gsl_eigen_nonsymmv_params(1, w); //1: Do a balancing transformation to reduce the error of eigenvalue calculation
   gsl_eigen_nonsymmv(&m.matrix, eval, evec, w); // Compute the eigenvalues, NOTE: This destroys m.matrix
+  if (SortAsc)  gsl_eigen_nonsymmv_sort (eval, evec, GSL_EIGEN_SORT_ABS_ASC);
+  if (SortDesc) gsl_eigen_nonsymmv_sort (eval, evec, GSL_EIGEN_SORT_ABS_DESC);
   //Get the eigenvalues back into our vector
   R = GSL_REAL(gsl_vector_complex_get(eval,0)), GSL_REAL(gsl_vector_complex_get(eval,1)), GSL_REAL(gsl_vector_complex_get(eval,2));
   I = GSL_IMAG(gsl_vector_complex_get(eval,0)), GSL_IMAG(gsl_vector_complex_get(eval,1)), GSL_IMAG(gsl_vector_complex_get(eval,2));

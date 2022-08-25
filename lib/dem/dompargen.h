@@ -1290,6 +1290,61 @@ inline void Domain::AddCylinder (int Tag, Vec3_t const & X0, double R0, Vec3_t c
     //std::cout << *Particles[Particles.Size()-1] << std::endl;
 }
 
+inline void Domain::AddCylinderEdge (int Tag, Vec3_t const & X0, double R0, Vec3_t const & X1, double R1, double R, double rho)
+{
+    //Calculate principal vectors on cylinder faces
+    Vec3_t n = X1 - X0;
+    n /= norm(n);
+    Vec3_t P1 = OrthoSys::e0 - dot(OrthoSys::e0,n)*n;
+    if (norm(P1)<1.0e-12) P1 = OrthoSys::e2 - dot(OrthoSys::e2,n)*n;
+    P1       /= norm(P1);
+    Vec3_t P2 = cross(n,P1);
+    P2       /= norm(P2);
+    //Define the geometric elements of the cylinder.
+    Array<Vec3_t > V(2);
+    V[0] = X0;
+    V[1] = X1;
+
+    Array<Array <int> > E(1);
+    Array<Array <int> > F(0);
+    E[0].Push(0); E[0].Push(1); //Only one edge, 0-1
+    
+    //Add the particle just with the vertices and edge, use R+R0 as the cylinder radius
+    //
+    Particles.Push (new Particle(Tag,V,E,F,OrthoSys::O,OrthoSys::O,R0+R,rho));
+
+    //Input all the mass properties
+    Vec3_t xp,yp,zp;
+    xp = P1;
+    zp = P2;
+    yp = cross(zp,xp);
+    CheckDestroGiro(xp,yp,zp);
+    Quaternion_t q;
+    q(0) = 0.5*sqrt(1+xp(0)+yp(1)+zp(2));
+    q(1) = (yp(2)-zp(1))/(4*q(0));
+    q(2) = (zp(0)-xp(2))/(4*q(0));
+    q(3) = (xp(1)-yp(0))/(4*q(0));
+    q = q/norm(q);
+
+    if (std::isnan(norm(q))) q = 1.0,0.0,0.0,0.0;
+
+    Particles[Particles.Size()-1]->Q          = q;
+    Particles[Particles.Size()-1]->Props.V    = 4.0*M_PI*R0*R*norm(X1-X0);
+    Particles[Particles.Size()-1]->Props.m    = rho*4.0*M_PI*R0*R*norm(X1-X0);
+    Particles[Particles.Size()-1]->I          = 1.0, 1.0, 1.0;
+    Particles[Particles.Size()-1]->x          = 0.5*(X0 + X1);
+    Particles[Particles.Size()-1]->Ekin       = 0.0;
+    Particles[Particles.Size()-1]->Erot       = 0.0;
+    Particles[Particles.Size()-1]->Dmax       = sqrt(0.25*dot(X1-X0,X1-X0)+std::max(R0,R1)*std::max(R0,R1)) + R;
+    Particles[Particles.Size()-1]->PropsReady = true;
+    Particles[Particles.Size()-1]->Index      = Particles.Size()-1;
+    //Particles[Particles.Size()-1]->Tori.Push     (new Torus(&X0,Particles[Particles.Size()-1]->Verts[0],Particles[Particles.Size()-1]->Verts[1]));
+    //Particles[Particles.Size()-1]->Tori.Push     (new Torus(&X1,Particles[Particles.Size()-1]->Verts[3],Particles[Particles.Size()-1]->Verts[4]));
+    //Particles[Particles.Size()-1]->Cylinders.Push(new Cylinder(Particles[Particles.Size()-1]->Tori[0],Particles[Particles.Size()-1]->Tori[1],Particles[Particles.Size()-1]->Verts[2],Particles[Particles.Size()-1]->Verts[5]));
+
+    //std::cout << *Particles[Particles.Size()-1] << std::endl;
+}
+
 inline void Domain::AddFromJson (int Tag, char const * Filename, double R, double rho, double scale, bool Erode)
 {
 

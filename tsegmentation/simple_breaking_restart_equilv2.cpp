@@ -312,16 +312,28 @@ void Report (DEM::Domain & Dom, void * UD)
 
 int main(int argc, char **argv) try
 {
-    if (argc<2) throw new Fatal("This program must be called with one argument: the name of the data input file without the '.inp' suffix.\nExample:\t %s filekey\n",argv[0]);
+    if (argc<5) throw new Fatal("This program must be called with the following arguments:\n %s filekey Nc Restart ptype\n",argv[0]);
     String filekey  (argv[1]);
     String filename (filekey+".inp");
-    size_t Nproc = 1; 
-    if (argc==3) Nproc=atoi(argv[2]);
+    size_t Nproc = 1, Restart =0; 
+    bool Dilate = false;
+    if (argc>=3) Nproc=atoi(argv[2]);
+    if (argc>=4) Restart=atoi(argv[3]);
     if (!Util::FileExists(filename)) throw new Fatal("File <%s> not found",filename.CStr());
     ifstream infile(filename.CStr());
+    String ptype  (argv[4]);
+    String gfilename ("");
+    String gfilekey ("");
+    if(argc>=6){
+      std::cout<<"Initial structure from loading file "<<argv[5]<<"\n";
+      //String geometry_file (argv[5]); //File containing the geometry to use for restarting
+      gfilekey.Printf("%s",argv[5]);
+      gfilename.Printf("%s%s",gfilekey.CStr(),".hdf5");
+      if (!Util::FileExists(gfilename)) throw new Fatal("File <%s> not found",gfilename.CStr());
+    }
+    if (argc>=7) Dilate=atoi(argv[6]);
 
     double verlet;      // Verlet distance for optimization
-    String ptype;       // Particle type 
     String test;       // Particle type 
     size_t RenderVideo; // Decide if video should be rendered and which format to use
     double Kn;          // Normal stiffness
@@ -353,13 +365,11 @@ int main(int argc, char **argv) try
     double ome;         // Frequency of vibration
     double ex;          // Final strain for the tensile test (positive extension, negative compression)
     double SEFthr;      // Strain energy field threshold
-    size_t Restart;     // Restart number
     double max_time;    // Time at which the maximum strainEF was found in previous run, should match name of the restart file to use, if any HERE WE USE IT AS STARTNG TIME FOR THE NEW SIMULATION
     size_t idx_init;    // Last idx from previous simulation
     bool cohesion;      // Whether or not to apply cohesion between particles
     {
         infile >> verlet;       infile.ignore(200,'\n');
-        infile >> ptype;        infile.ignore(200,'\n');
         infile >> test;         infile.ignore(200,'\n');
         infile >> RenderVideo;  infile.ignore(200,'\n');
         infile >> Kn;           infile.ignore(200,'\n');
@@ -391,7 +401,6 @@ int main(int argc, char **argv) try
         infile >> ome;          infile.ignore(200,'\n');
         infile >> ex;           infile.ignore(200,'\n');
         infile >> SEFthr;       infile.ignore(200,'\n');
-        infile >> Restart;      infile.ignore(200,'\n');
         infile >> max_time;      infile.ignore(200,'\n');
         infile >> idx_init;      infile.ignore(200,'\n');
         infile >> cohesion;      infile.ignore(200,'\n');
@@ -404,7 +413,7 @@ int main(int argc, char **argv) try
     DEM::Domain dom(&dat);
     String _fs;
     dom.Alpha = verlet;
-    dom.Dilate= true;
+    dom.Dilate= Dilate;
     dat.Tcomp = max_time;
     dat.verbose = false;
     // Tags of bulk, static, moving particles
@@ -429,9 +438,11 @@ int main(int argc, char **argv) try
       }
     else if (ptype=="voronoi2")
       {
-        _fs.Printf("initial_points_%i.xyz", Restart);
-        std::cout<<"Reading points for voronoi packing from "<<_fs.CStr()<<"\n";
-        dom.AddVoroPackFromPoints (/*Tag*/bTag, /*Spheroradious*/R,  /*Dimentions*/Lx,Ly,Lz,  /*Number of cells*/nx,ny,nz, /*FileKey*/_fs.CStr(), /*Density*/rho,  /*Cohesion*/cohesion,  /*Periodic*/false,  /*Rand seed*/seed,  /*fraction*/1.0);
+        if (gfilename==""){
+          gfilename.Printf("initial_points_%i.xyz", Restart);
+        }
+        std::cout<<"Reading points for voronoi packing from "<<gfilename.CStr()<<"\n";
+        dom.AddVoroPackFromPoints (/*Tag*/bTag, /*Spheroradious*/R,  /*Dimentions*/Lx,Ly,Lz,  /*Number of cells*/nx,ny,nz, /*FileKey*/gfilename.CStr(), /*Density*/rho,  /*Cohesion*/cohesion,  /*Periodic*/false,  /*Rand seed*/seed,  /*fraction*/1.0);
         _fs.Printf("%s_%04d", "brick_geometry",Restart);
         dom.WriteXDMF(_fs.CStr());
         std::cout<<"Saved initial domain structure into"<<_fs.CStr()<<std::endl;
@@ -441,14 +452,16 @@ int main(int argc, char **argv) try
       }
     else if (ptype=="load")
       {
-        _fs.Printf("segment_%04d/brick_restart_geometry_initial%04d", Restart-1,Restart);
-        // _fs.Printf("brick_geometry_%i", Restart);
-        std::cout<<"Loading geometry from "<<_fs.CStr()<<"\n";
-        dom.LoadCohesion(_fs.CStr(),cohesion,bTag);
+        if (gfilekey==""){
+          std::cout<<"Geometry filename not defined, using default...\n";
+          gfilekey.Printf("segment_%04d/brick_restart_geometry_initial%04d", Restart-1,Restart);
+        }
+        std::cout<<"Loading geometry from "<<gfilekey.CStr()<<"\n";
+        dom.LoadCohesion(gfilekey.CStr(),cohesion,bTag, /*L0*/0.,/*Erode*/true);
         std::cout<<"Number of particles added: "<<dom.Particles.Size()<<std::endl;
         _fs.Printf("%s_%04d", "brick_geometry",Restart);
         dom.WriteXDMF(_fs.CStr());
-        std::cout<<"Saved initial domain structure into"<<_fs.CStr()<<std::endl;
+        std::cout<<"Saved initial domain visualization into"<<_fs.CStr()<<std::endl;
         _fs.Printf("%s_initial%04d", filekey.CStr(),Restart);
         dom.Save(_fs.CStr());
         std::cout<<"Saved initial domain structure into"<<_fs.CStr()<<std::endl;
@@ -472,21 +485,28 @@ int main(int argc, char **argv) try
     std::cout<<"Adding cylinder at "<<Vec3_t(0.,0.,Lz/2.+Rc+R)<<" with radius "<<Rc<<"\n";
     std::cout<<"Lz: "<<Lz<<" Rc: "<<Rc<<" R: "<<R<<"\n";
     //Add a cylinder as the connection of two circles of radius R0 and R1 located at X0 and X1
-    dom.AddCylinder(/*Tag*/mTag,/*X0*/Vec3_t(0.,-Lz/2.,Lz/2.+R+Rc),/*R0*/Rc,/*X1*/Vec3_t(0.,Lz/2.,Lz/2.+R+Rc),/*R1*/Rc,/*R*/R,/*rho*/rho);
+    //dom.AddCylinder(/*Tag*/mTag,/*X0*/Vec3_t(0.,-Lz/2.,Lz/2.+R+Rc),/*R0*/Rc,/*X1*/Vec3_t(0.,Lz/2.,Lz/2.+R+Rc),/*R1*/Rc,/*R*/R,/*rho*/rho);
+    dom.AddCylinderEdge(/*Tag*/mTag,/*X0*/Vec3_t(0.,-Lz/2.,Lz/2.+R+Rc),/*R0*/Rc,/*X1*/Vec3_t(0.,Lz/2.,Lz/2.+R+Rc),/*R1*/Rc,/*R*/R,/*rho*/rho);
     //dom.AddCylinder(/*Tag*/mTag,/*X0*/Vec3_t(0.,-Lz/2.,Lz/2.+Rc),/*R0*/Rc,/*X1*/Vec3_t(0.,Lz/2.,Lz/2.+Rc),/*R1*/Rc,/*R*/R,/*rho*/rho);
     std::cout<<"Upper cylinder with index "<<dom.Particles.Size()-1<<" located at "<<dom.Particles.Last()->x<<std::endl;
     std::cout<<"Distance from block to upper cylinder: " <<Xmax_brick(2)-dom.Particles.Last()->x(2) <<"\n";
-    //dom.AddCylinder(/*Tag*/sTag,/*X0*/Vec3_t(-Lx/2.+dx,-Lz/2.,-Lz/2.-R-Rc),/*R0*/Rc,/*X1*/Vec3_t(-Lx/2.+dx,Lz/2.,-Lz/2.-R-Rc),/*R1*/Rc,/*R*/R,/*rho*/rho);
-    dom.AddCylinder(/*Tag*/sTag,/*X0*/Vec3_t(-Lx/2.+dx,-Lz/2.,-Lz/2.-Rc),/*R0*/Rc,/*X1*/Vec3_t(-Lx/2.+dx,Lz/2.,-Lz/2.-Rc),/*R1*/Rc,/*R*/R,/*rho*/rho);
-    std::cout<<"Lower cylinder with index "<<dom.Particles.Size()-1<<" located at "<<dom.Particles.Last()->x<<std::endl;
-    std::cout<<"Distance from block to lower cylinder: " <<Xmin_brick(2)-dom.Particles.Last()->x(2) <<"\n";
     //Make the third cylinder randomly smaller to give the fracture a predilect direction
-    srand(0);
+    //srand(0);
     double Rb=Rc; //-(rand()%10+1)*Rc/100.;
     std::cout <<"Rb: "<<Rb<<"\n";
-    dom.AddCylinder(/*Tag*/sTag,/*X0*/Vec3_t(Lx/2.-dx,-Lz/2.,-Lz/2.-R-Rc),/*R0*/Rb,/*X1*/Vec3_t(Lx/2.-dx,Lz/2.,-Lz/2.-R-Rc),/*R1*/Rb,/*R*/R,/*rho*/rho);
+    //Second cylinder Radius Rc
+    //dom.AddCylinder(/*Tag*/sTag,/*X0*/Vec3_t(-Lx/2.+dx,-Lz/2.,-Lz/2.-R-Rc),/*R0*/Rb,/*X1*/Vec3_t(-Lx/2.+dx,Lz/2.,-Lz/2.-R-Rc),/*R1*/Rb,/*R*/R,/*rho*/rho);
+    dom.AddCylinderEdge(/*Tag*/sTag,/*X0*/Vec3_t(-Lx/2.+dx,-Lz/2.,-Lz/2.-R-Rc),/*R0*/Rb,/*X1*/Vec3_t(-Lx/2.+dx,Lz/2.,-Lz/2.-R-Rc),/*R1*/Rb,/*R*/R,/*rho*/rho);
+    //dom.AddCylinder(/*Tag*/sTag,/*X0*/Vec3_t(-Lx/2.+dx,-Lz/2.,-Lz/2.-Rc+R),/*R0*/Rc,/*X1*/Vec3_t(-Lx/2.+dx,Lz/2.,-Lz/2.-Rc),/*R1*/Rc,/*R*/R,/*rho*/rho);
+    std::cout<<"Lower cylinder with index "<<dom.Particles.Size()-1<<" located at "<<dom.Particles.Last()->x<<std::endl;
+    std::cout<<"Lower cylinder EdgeCon "<<dom.Particles.Last()->EdgeCon<<std::endl;
+    std::cout<<"Distance from block to lower cylinder: " <<Xmin_brick(2)-dom.Particles.Last()->x(2) <<"\n";
+    //Third cylinder Radius Rb <- this one touches the block from the begining
+    //dom.AddCylinder(/*Tag*/sTag,/*X0*/Vec3_t(Lx/2.-dx,-Lz/2.,-Lz/2.-R-Rc),/*R0*/Rb,/*X1*/Vec3_t(Lx/2.-dx,Lz/2.,-Lz/2.-R-Rc),/*R1*/Rb,/*R*/R,/*rho*/rho);
+    dom.AddCylinderEdge(/*Tag*/sTag,/*X0*/Vec3_t(Lx/2.-dx,-Lz/2.,-Lz/2.-R-Rc),/*R0*/Rb,/*X1*/Vec3_t(Lx/2.-dx,Lz/2.,-Lz/2.-R-Rc),/*R1*/Rb,/*R*/R,/*rho*/rho);
     //dom.AddCylinder(/*Tag*/sTag,/*X0*/Vec3_t(Lx/2.-dx,-Lz/2.,-Lz/2.-Rb),/*R0*/Rb,/*X1*/Vec3_t(Lx/2.-dx,Lz/2.,-Lz/2.-Rb),/*R1*/Rb,/*R*/R,/*rho*/rho);
     std::cout<<"Lower cylinder (Radius Rb) with index "<<dom.Particles.Size()-1<<" located at "<<dom.Particles.Last()->x<<std::endl;
+    std::cout<<"Lower cylinder EdgeCon "<<dom.Particles.Last()->EdgeCon<<std::endl;
     std::cout<<"Distance from block to lower cylinder: " <<Xmin_brick(2)-dom.Particles.Last()->x(2) <<"\n";
 
     // Initialize the UserData structure
@@ -560,7 +580,7 @@ int main(int argc, char **argv) try
     }
     std::cout<<"Indices of lower cylinders and plane: "<<dat.ps[0]->Index<<" "<<dat.ps[1]->Index<<" "<<dat.ps[2]->Index<<std::endl;
 
-    std::cout<<"Number of interactons for domain:"<<dom.Interactons.Size()<<std::endl;
+    std::cout<<"Number of  Interactons for domain:"<<dom.Interactons.Size()<<std::endl;
     std::cout<<"Number of BInteractons for domain:"<<dom.BInteractons.Size()<<std::endl;
     std::cout<<"Number of CInteractons for domain:"<<dom.CInteractons.Size()<<std::endl;
     // XXX : Keeping track of particles forces
@@ -577,13 +597,19 @@ int main(int argc, char **argv) try
     // std::cout<<"Strain Energy Field for particle "<<0<<" : "<<strainEF[0]<<"\n";
 
     // dom.Solve (Tf,dt,dtOut, &Setup, &Report, filekey.CStr(), RenderVideo, Nproc);
-    // _fs.Printf("%s%04d", "brick_planes",Restart);
-    // dom.WriteXDMF(_fs.CStr());
-    // dom.WritePOV(_fs.CStr());
-    // std::cout<<"Saving initial domain structure..."<<std::endl;
-    // _fs.Printf("%s_initial%04d", filekey.CStr(),Restart);
-    // dom.Save(_fs.CStr());
-    // std::cout<<"Saved initial domain structure into "<<_fs.CStr()<<"!"<<std::endl;
+    dom.Dilate = false;
+    _fs.Printf("%s%04d", "brick_planes_nospheroradii",Restart);
+    dom.WriteXDMF(_fs.CStr());
+    dom.WritePOV(_fs.CStr());
+    dom.Dilate = true;
+    _fs.Printf("%s%04d", "brick_planes",Restart);
+    dom.WriteXDMF(_fs.CStr());
+    dom.WritePOV(_fs.CStr());
+    dom.Dilate = Dilate;
+    //std::cout<<"Saving complete initial domain structure..."<<std::endl;
+    //_fs.Printf("%s_planes_initial%04d", filekey.CStr(),Restart);
+    //dom.Save(_fs.CStr());
+    //std::cout<<"Saved initial domain structure into "<<_fs.CStr()<<"!"<<std::endl;
     dom.Solve (Tf,dt,dtOut, NULL, &Report, filekey.CStr(), RenderVideo, Nproc);
     // dom.Solve (Tf,dt,dtOut, NULL, NULL, filekey.CStr(), RenderVideo, Nproc);
     std::cout<<"Saving final domain structure..."<<std::endl;

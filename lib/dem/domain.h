@@ -112,6 +112,7 @@ public:
     void AddVoroCell (int Tag, voro::voronoicell & VC, double R, double rho, bool Erode, Vec3_t nv = iVec3_t(1.0,1.0,1.0));      ///< Add a single voronoi cell, it should be built before tough
     void AddTorus    (int Tag, Vec3_t const & X, Vec3_t const & N, double Rmax, double R, double rho);                           ///< Add a single torus at position X with a normal N, circunference Rmax and spheroradius R
     void AddCylinder (int Tag, Vec3_t const & X0, double R0, Vec3_t const & X1, double R1, double R, double rho);                ///< Add a cylinder formed by the connection of two circles at positions X0 and X1 and radii R0 and R1
+    void AddCylinderEdge (int Tag, Vec3_t const & X0, double R0, Vec3_t const & X1, double R1, double R, double rho);                ///< Add a cylinder formed by the connection of two circles at positions X0 and X1 and radii R0 and R1
     void AddFromJson (int Tag, char const * Filename, double R, double rho, double scale,bool Erode = false);                    ///< Add a particle generated from Json mesh
 
 
@@ -133,7 +134,7 @@ public:
     void Save              (char const * FileKey);                                                              ///< Save the current domain
     void SavePoints        (char const * FileKey, int bTag);                                                              ///< Save the current domain
     void Load              (char const * FileKey);                                                              ///< Load the domain form a file
-    void LoadCohesion              (char const * FileKey, bool Cohesion, int bTag);                                                              ///< Load the domain form a file adding cohesion between the particles of a given tag bTag
+    void LoadCohesion              (char const * FileKey, bool Cohesion, int bTag, double L0=0., bool Erode=false);                                                              ///< Load the domain form a file adding cohesion between the particles of a given tag bTag
 #endif
 
 #ifdef USE_VTK
@@ -1437,6 +1438,8 @@ inline void Domain::WriteXDMF_User ( Array<double> strainEF, char const * FileKe
 {
     size_t N_Faces = 0;
     size_t N_Verts = 0;
+    //size_t N_Cylinders = 0;
+    //size_t nCylVerts=14;
     for (size_t i=0; i<Particles.Size(); i++) 
     { 
         for (size_t j=0;j<Particles[i]->Faces.Size();j++)
@@ -1444,6 +1447,8 @@ inline void Domain::WriteXDMF_User ( Array<double> strainEF, char const * FileKe
             N_Faces += Particles[i]->Faces[j]->Edges.Size();
         }
         N_Verts += Particles[i]->Verts.Size() + Particles[i]->Faces.Size();
+	//N_Cylinder += Particles[i]->Cylinders.Size();
+        //N_Verts += Particles[i]->Verts.Size() + Particles[i]->Faces.Size() + nCylVerts*Particles[i]->Cylinders.Size();
     }
 
     String fn(FileKey);
@@ -1681,6 +1686,7 @@ inline void Domain::WriteXDMF_User ( Array<double> strainEF, char const * FileKe
     delete [] Ekin;
     delete [] Tag;
 
+    //Stroing cylinder data
 
     //Closing the file
     H5Fflush(file_id,H5F_SCOPE_GLOBAL);
@@ -2330,7 +2336,7 @@ inline void Domain::Load (char const * FileKey)
     printf("\n%s--- Done --------------------------------------------%s\n",TERM_CLR2,TERM_RST);
 }
 
-inline void Domain::LoadCohesion (char const * FileKey, bool Cohesion, int bTag)
+inline void Domain::LoadCohesion (char const * FileKey, bool Cohesion, int bTag, double L0, bool Erode)
 {
 
     size_t IIndex = Particles.Size();
@@ -2482,7 +2488,7 @@ inline void Domain::LoadCohesion (char const * FileKey, bool Cohesion, int bTag)
         H5LTread_dataset_int(group_id,"Tag",tag);
         Particles[Particles.Size()-1]->Tag = tag[0];
         Particles[Particles.Size()-1]->PropsReady = true;
-
+	if (Erode) Particles[Particles.Size()-1]->Eroded = true;
     }
 
 
@@ -2494,7 +2500,6 @@ inline void Domain::LoadCohesion (char const * FileKey, bool Cohesion, int bTag)
     Array<Array <size_t> > ListBpairs(Particles.Size()-IIndex);//n);
     if (Cohesion)
     {
-        //if (fraction<1.0) throw new Fatal("Domain::AddVoroPack: With the Cohesion all particles should be considered, plese change the fraction to 1.0");
 
         // define some tolerance for comparissions
         double tol1 = 1.0e-8;
@@ -2507,7 +2512,7 @@ inline void Domain::LoadCohesion (char const * FileKey, bool Cohesion, int bTag)
             {
                 Particle * P2 = Particles[j];
                 if (P1->Tag != bTag) continue;
-                if (Distance(P1->x,P2->x)<P1->Dmax+P2->Dmax)
+                if (Distance(P1->x,P2->x)<P1->Dmax+P2->Dmax+L0)
                 {
                     double R =0.5*(P1->Props.R+P2->Props.R);
                     for (size_t k=0;k<P1->Faces.Size();k++)
@@ -2526,8 +2531,8 @@ inline void Domain::LoadCohesion (char const * FileKey, bool Cohesion, int bTag)
                             Vec3_t n = 0.5*(n1-n2);
                             n/=norm(n);
                             if ((fabs(dot(n1,n2)+1.0)<tol1)
-                               &&(fabs(Distance(c1,*F2)-2*R)<tol2)
-                               &&(fabs(Distance(c2,*F1)-2*R)<tol2))
+                               &&(fabs(Distance(c1,*F2)-2*R)<tol2+L0)
+                               &&(fabs(Distance(c2,*F1)-2*R)<tol2+L0))
                             {
                                 BInteractons.Push(new BInteracton(P1,P2,k,l));
                                 found = true;

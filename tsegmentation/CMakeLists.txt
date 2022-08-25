@@ -26,12 +26,14 @@ SET(PROGS
     simple_restart
     test_cube
     three_cubes
+    cut_particles
     test_beam
     test_beam_from_file
     simple_breaking_restartv0
     simple_breaking_restartv1
     simple_breaking_restart_equil
     simple_breaking_restart_equilv1
+    simple_breaking_restart_equilv2
     simple_breaking_write_points
     voro_error
     isolate_particles
