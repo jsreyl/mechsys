@@ -597,6 +597,14 @@ int main(int argc, char **argv) try
     // std::cout<<"Strain Energy Field for particle "<<0<<" : "<<strainEF[0]<<"\n";
 
     // dom.Solve (Tf,dt,dtOut, &Setup, &Report, filekey.CStr(), RenderVideo, Nproc);
+    double minvol = DBL_MAX, maxvol = 0.0;
+    for(size_t p=0; p<dom.Particles.Size();p++){
+        //std::cout<<"Particle "<<p<<" from dom eroded?"<<sdom.Particles[p]->Eroded<<"\n";
+        double Pvol = dom.Particles[p]->Props.V;
+        if (Pvol>maxvol) maxvol = Pvol;
+        if (Pvol<minvol) minvol = Pvol;
+    }
+    std::cout<<"Volume from domain: Maxvol "<<maxvol<<"\t Minvol"<<minvol<<"\n";
     dom.Dilate = false;
     _fs.Printf("%s%04d", "brick_planes_nospheroradii",Restart);
     dom.WriteXDMF(_fs.CStr());

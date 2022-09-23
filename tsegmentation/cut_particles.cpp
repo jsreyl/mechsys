@@ -109,7 +109,14 @@ int main(int argc, char **argv) try
           std::cout<<"Are particles eroded?"<<erode<<std::endl;
           dom.LoadCohesion(geometry_file.CStr(), cohesion, bTag, /*L0*/0.,/*Eroded*/erode);
         }
-        for(size_t p=0; p<dom.Particles.Size();p++) std::cout<<"Particle "<<p<<" from dom eroded?"<<dom.Particles[p]->Eroded<<"\n";
+        double minvol = DBL_MAX, maxvol = 0.0;
+        for(size_t p=0; p<dom.Particles.Size();p++){
+           std::cout<<"Particle "<<p<<" from dom eroded?"<<dom.Particles[p]->Eroded<<"\n";
+           double Pvol = dom.Particles[p]->Props.V;
+           if (Pvol>maxvol) maxvol = Pvol;
+           if (Pvol<minvol) minvol = Pvol;
+        }
+        std::cout<<"Volume from previous domain: Maxvol "<<maxvol<<"\t Minvol"<<minvol<<"\n";
         dom.Dilate=false;
         dom.WriteXDMF("brick_loaded");
         dom.Dilate=true;
@@ -196,7 +203,14 @@ int main(int argc, char **argv) try
         // sdom.Particles[sdom.Particles.Size()-1]->InitializeVelocity(dat.dt);//Initialize this particle
       }
       std::cout<<"DOM0: Number of particles in previous domain: "<<dom.Particles.Size()<<"\nNumber of particles in new domain: "<<sdom.Particles.Size()<<"\n";
-      for(size_t p=0; p<sdom.Particles.Size();p++) std:cout<<"Particle "<<p<<" from sdom eroded?"<<sdom.Particles[p]->Eroded<<"\n";
+      minvol = DBL_MAX; maxvol = 0.0;
+      for(size_t p=0; p<sdom.Particles.Size();p++){
+          std::cout<<"Particle "<<p<<" from dom eroded?"<<sdom.Particles[p]->Eroded<<"\n";
+          double Pvol = sdom.Particles[p]->Props.V;
+          if (Pvol>maxvol) maxvol = Pvol;
+          if (Pvol<minvol) minvol = Pvol;
+      }
+      std::cout<<"Volume from segmented domain: Maxvol "<<maxvol<<"\t Minvol"<<minvol<<"\n";
     }
     _fs.Printf("%s_%04d", "brick_geometry",Restart);
     sdom.WriteXDMF(_fs.CStr());
